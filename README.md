@@ -34,6 +34,7 @@ ruff check .
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor workflow details.
+See [CHANGELOG.md](CHANGELOG.md) for notable unreleased changes.
 
 Check the installed CLI version with:
 
