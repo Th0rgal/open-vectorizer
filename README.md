@@ -33,6 +33,8 @@ pytest
 ruff check .
 ```
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor workflow details.
+
 Check the installed CLI version with:
 
 ```bash
