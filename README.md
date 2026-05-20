@@ -80,6 +80,7 @@ The most important tracing controls are:
 - `--palette`: comma-separated light-mode hex fills, assigned in traced group order.
 - `--dark-palette`: optional dark-mode hex fills emitted through CSS custom properties.
 - `--background`: optional hex background override when the image border is not reliable.
+- `--title`: accessible SVG `<title>` and `aria-label` text.
 - `--threshold`: RGB distance from the estimated border background required for foreground.
 - `--alpha-threshold`: alpha cutoff used when tracing transparent artwork.
 - `--mask-blur`: Gaussian sigma for fairing binary masks before contour extraction.

@@ -51,6 +51,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional background hex color override. Example: '#ffffff'",
     )
     parser.add_argument(
+        "--title",
+        default="Vectorized artwork",
+        help="Accessible SVG title and aria-label",
+    )
+    parser.add_argument(
         "--alpha-threshold",
         type=_float_between("alpha-threshold", 0.0, 255.0),
         default=8.0,
@@ -195,6 +200,7 @@ def main() -> None:
             padding=args.padding,
             background_threshold=args.threshold,
             background_color=args.background,
+            title=args.title,
             alpha_threshold=args.alpha_threshold,
             mask_blur=args.mask_blur,
             simplify=args.simplify,

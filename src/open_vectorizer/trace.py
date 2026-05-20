@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import re
-from xml.sax.saxutils import escape
+from xml.sax.saxutils import escape, quoteattr
 
 import cv2
 import numpy as np
@@ -30,6 +30,7 @@ class TraceOptions:
     palette: list[str] | None = None
     dark_palette: list[str] | None = None
     background_color: str | None = None
+    title: str = "Vectorized artwork"
     alpha_threshold: float = 8.0
     mask_blur: float = 0.0
 
@@ -80,7 +81,7 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
         if paths:
             paths_by_color.append((color, paths))
 
-    return _svg(width, height, paths_by_color, dark_palette)
+    return _svg(width, height, paths_by_color, dark_palette, opts.title)
 
 
 def _normalize_palette(palette: list[str] | None, name: str) -> list[str] | None:
@@ -815,12 +816,13 @@ def _svg(
     height: int,
     paths_by_color: list[tuple[str, list[str]]],
     dark_palette: list[str] | None = None,
+    title: str = "Vectorized artwork",
 ) -> str:
     lines = [
         '<svg xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="0 0 {width} {height}" width="{width}" height="{height}" '
-        'role="img" aria-label="Vectorized artwork">',
-        "  <title>Vectorized artwork</title>",
+        f'role="img" aria-label={quoteattr(title)}>',
+        f"  <title>{escape(title)}</title>",
     ]
     if dark_palette:
         lines.extend(_theme_style(paths_by_color, dark_palette))

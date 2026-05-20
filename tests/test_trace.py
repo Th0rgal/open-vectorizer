@@ -58,6 +58,23 @@ def test_trace_can_embed_light_and_dark_theme_palettes() -> None:
     assert 'class="shape-group shape-group-1"' in svg
 
 
+def test_trace_uses_accessible_svg_title() -> None:
+    source = Path("examples/keel-compressed.jpg")
+    svg = trace_image(
+        source,
+        TraceOptions(
+            groups=2,
+            resize_long_side=600,
+            palette=["#c77832", "#171717"],
+            title='Keel & Sail "Mark"',
+            simplify=3.0,
+        ),
+    )
+
+    assert '<title>Keel &amp; Sail "Mark"</title>' in svg
+    assert "aria-label='Keel &amp; Sail \"Mark\"'" in svg
+
+
 def test_trace_normalizes_short_hex_palette_colors() -> None:
     source = Path("examples/keel-compressed.jpg")
     svg = trace_image(
@@ -176,6 +193,8 @@ def test_cli_main_writes_svg_with_normalized_palette(
             "#DEF,#F4EAD8",
             "--background",
             "#000",
+            "--title",
+            "Keel mark",
             "--simplify",
             "3",
             "--min-area",
@@ -189,6 +208,7 @@ def test_cli_main_writes_svg_with_normalized_palette(
     assert output.exists()
     assert "--ov-group-1: #aabbcc;" in svg
     assert "--ov-group-1: #ddeeff;" in svg
+    assert "<title>Keel mark</title>" in svg
     assert "<svg" in svg
 
 
