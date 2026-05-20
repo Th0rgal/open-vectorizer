@@ -2,14 +2,14 @@
   <title>Vectorized artwork</title>
   <style>
     :root {
-      --ov-group-1: #2f9f8f;
+      --ov-group-1: #c77832;
       --ov-group-2: #171717;
     }
-    .shape-group-1 { fill: var(--ov-group-1, #2f9f8f); }
+    .shape-group-1 { fill: var(--ov-group-1, #c77832); }
     .shape-group-2 { fill: var(--ov-group-2, #171717); }
     @media (prefers-color-scheme: dark) {
       :root {
-        --ov-group-1: #8edbc8;
+        --ov-group-1: #f0a45b;
         --ov-group-2: #f4ead8;
       }
     }

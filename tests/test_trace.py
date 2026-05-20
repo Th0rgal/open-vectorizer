@@ -40,18 +40,18 @@ def test_trace_can_embed_light_and_dark_theme_palettes() -> None:
         TraceOptions(
             groups=2,
             resize_long_side=600,
-            palette=["#2f9f8f", "#171717"],
-            dark_palette=["#8edbc8", "#f4ead8"],
+            palette=["#c77832", "#171717"],
+            dark_palette=["#f0a45b", "#f4ead8"],
             simplify=3.0,
         ),
     )
 
     assert "@media (prefers-color-scheme: dark)" in svg
-    assert "--ov-group-1: #2f9f8f;" in svg
+    assert "--ov-group-1: #c77832;" in svg
     assert "--ov-group-2: #171717;" in svg
-    assert "--ov-group-1: #8edbc8;" in svg
+    assert "--ov-group-1: #f0a45b;" in svg
     assert "--ov-group-2: #f4ead8;" in svg
-    assert ".shape-group-1 { fill: var(--ov-group-1, #2f9f8f); }" in svg
+    assert ".shape-group-1 { fill: var(--ov-group-1, #c77832); }" in svg
     assert 'class="shape-group shape-group-1"' in svg
 
 

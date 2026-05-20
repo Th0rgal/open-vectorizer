@@ -29,8 +29,8 @@ pip install -e .
 ```bash
 open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
   --groups 2 \
-  --palette '#2f9f8f,#171717' \
-  --dark-palette '#8edbc8,#f4ead8' \
+  --palette '#c77832,#171717' \
+  --dark-palette '#f0a45b,#f4ead8' \
   --resize 1200 \
   --mask-blur 1.0 \
   --simplify 1.98 \
@@ -46,10 +46,10 @@ open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
 
 This produces two SVG groups with a warm light palette and an embedded dark-mode palette. The SVG
 uses CSS custom properties plus `@media (prefers-color-scheme: dark)`, so the same file can adapt
-from warm teal and soft black on light backgrounds to muted mint and ivory on dark backgrounds.
-For the included `keel-compressed.jpg` example, the result is three total paths: one teal blade and
+from copper and soft black on light backgrounds to amber and ivory on dark backgrounds.
+For the included `keel-compressed.jpg` example, the result is three total paths: one warm blade and
 two black strokes. The generated paths use cubic Bezier segments throughout, including the broad
-teal blade edges.
+blade edges.
 
 ## Why This Approach
 

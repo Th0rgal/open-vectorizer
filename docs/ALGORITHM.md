@@ -42,8 +42,8 @@ components:
 ```bash
 open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
   --groups 2 \
-  --palette '#2f9f8f,#171717' \
-  --dark-palette '#8edbc8,#f4ead8' \
+  --palette '#c77832,#171717' \
+  --dark-palette '#f0a45b,#f4ead8' \
   --resize 1200 \
   --mask-blur 1.0 \
   --simplify 1.98 \
@@ -59,7 +59,7 @@ open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
 
 The output has two shape groups and three total paths:
 
-- `shape-group-1`: warm teal blade in light mode, muted mint in dark mode
+- `shape-group-1`: copper blade in light mode, amber blade in dark mode
 - `shape-group-2`: soft black mast and horizontal stroke in light mode, warm ivory in dark mode
 
 The keel's left edge is especially sensitive to JPEG stair-step noise because the contour is long,
