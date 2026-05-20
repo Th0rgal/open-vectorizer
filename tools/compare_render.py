@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 import json
 import shutil
 import subprocess
@@ -66,16 +67,20 @@ def compare(
     }
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Render an SVG with rsvg-convert and compare it to an original PNG."
     )
     parser.add_argument("original", type=Path)
     parser.add_argument("svg", type=Path)
     parser.add_argument("--render", type=Path, help="Optional path for the rendered PNG")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    print(json.dumps(compare(args.original, args.svg, args.render), sort_keys=True))
+    try:
+        metrics = compare(args.original, args.svg, args.render)
+    except RuntimeError as exc:
+        parser.error(str(exc))
+    print(json.dumps(metrics, sort_keys=True))
 
 
 if __name__ == "__main__":
