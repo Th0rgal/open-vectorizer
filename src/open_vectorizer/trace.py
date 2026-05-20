@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from xml.sax.saxutils import escape
 
 import cv2
 import numpy as np
 from PIL import Image
+
+_HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
 
 @dataclass(frozen=True)
@@ -32,6 +35,9 @@ class TraceOptions:
 
 def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
     opts = options or TraceOptions()
+    _validate_options(opts)
+    palette = _normalize_palette(opts.palette, "palette")
+    dark_palette = _normalize_palette(opts.dark_palette, "dark_palette")
     rgb, alpha = _load_rgba(path, opts.resize_long_side)
     background = _estimate_background(rgb)
     has_alpha = bool(np.any(alpha < 255))
@@ -44,7 +50,7 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
         background,
         opts.background_threshold,
         opts.groups,
-        opts.palette,
+        palette,
         has_alpha,
         opts.mask_blur,
     )
@@ -72,7 +78,49 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
         if paths:
             paths_by_color.append((color, paths))
 
-    return _svg(width, height, paths_by_color, opts.dark_palette)
+    return _svg(width, height, paths_by_color, dark_palette)
+
+
+def _normalize_palette(palette: list[str] | None, name: str) -> list[str] | None:
+    if palette is None:
+        return None
+    return [_normalize_hex_color(color, name) for color in palette]
+
+
+def _normalize_hex_color(color: str, name: str) -> str:
+    cleaned = color.strip()
+    if not _HEX_COLOR_RE.fullmatch(cleaned):
+        raise ValueError(f"{name} colors must be hex values like #111 or #111111: {color!r}")
+    if len(cleaned) == 4:
+        cleaned = "#" + "".join(channel * 2 for channel in cleaned[1:])
+    return cleaned.lower()
+
+
+def _validate_options(options: TraceOptions) -> None:
+    _require_at_least("groups", options.groups, 1)
+    _require_at_least("resize_long_side", options.resize_long_side, 0)
+    _require_at_least("padding", options.padding, 0)
+    _require_at_least("background_threshold", options.background_threshold, 0.0)
+    _require_at_least("simplify", options.simplify, 0.0)
+    _require_at_least("contour_smooth", options.contour_smooth, 0)
+    _require_at_least("curve_spacing", options.curve_spacing, 0.0)
+    _require_at_least("corner_radius", options.corner_radius, 0.0)
+    _require_at_least("corner_rounding", options.corner_rounding, 0)
+    _require_at_least("curve_fit_error", options.curve_fit_error, 0.0)
+    _require_at_least("min_area", options.min_area, 0.0)
+    _require_between("corner_angle", options.corner_angle, 0.0, 180.0)
+    _require_between("alpha_threshold", options.alpha_threshold, 0.0, 255.0)
+    _require_at_least("mask_blur", options.mask_blur, 0.0)
+
+
+def _require_at_least(name: str, value: float, minimum: float) -> None:
+    if value < minimum:
+        raise ValueError(f"{name} must be at least {minimum}")
+
+
+def _require_between(name: str, value: float, minimum: float, maximum: float) -> None:
+    if value < minimum or value > maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
 
 
 def _load_rgb(path: str | Path, resize_long_side: int) -> np.ndarray:
@@ -188,7 +236,9 @@ def _clean_mask(mask: np.ndarray, blur_sigma: float = 0.0) -> np.ndarray:
     return mask
 
 
-def _mask_bbox(mask: np.ndarray, padding: int, width: int, height: int) -> tuple[int, int, int, int]:
+def _mask_bbox(
+    mask: np.ndarray, padding: int, width: int, height: int
+) -> tuple[int, int, int, int]:
     ys, xs = np.where(mask > 0)
     if len(xs) == 0:
         return 0, 0, width, height
@@ -439,10 +489,7 @@ def _closed_catmull_rom_path(points: np.ndarray, corner_angle: float) -> str:
         if sharp[(i + 1) % n]:
             c2 = p2
         parts.append(
-            "C "
-            f"{_fmt(c1[0])} {_fmt(c1[1])} "
-            f"{_fmt(c2[0])} {_fmt(c2[1])} "
-            f"{_fmt(p2[0])} {_fmt(p2[1])}"
+            f"C {_fmt(c1[0])} {_fmt(c1[1])} {_fmt(c2[0])} {_fmt(c2[1])} {_fmt(p2[0])} {_fmt(p2[1])}"
         )
     parts.append("Z")
     return " ".join(parts)
@@ -747,9 +794,7 @@ def _rounded_closed_path(points: np.ndarray, radius: float) -> str:
         if np.linalg.norm(entry - p[index]) > 0.1:
             parts.append(f"L {_fmt(entry[0])} {_fmt(entry[1])}")
         parts.append(
-            "Q "
-            f"{_fmt(corner[0])} {_fmt(corner[1])} "
-            f"{_fmt(exit_point[0])} {_fmt(exit_point[1])}"
+            f"Q {_fmt(corner[0])} {_fmt(corner[1])} {_fmt(exit_point[0])} {_fmt(exit_point[1])}"
         )
     parts.append("Z")
     return " ".join(parts)
@@ -765,7 +810,7 @@ def _svg(
         '<svg xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="0 0 {width} {height}" width="{width}" height="{height}" '
         'role="img" aria-label="Vectorized artwork">',
-        '  <title>Vectorized artwork</title>',
+        "  <title>Vectorized artwork</title>",
     ]
     if dark_palette:
         lines.extend(_theme_style(paths_by_color, dark_palette))
@@ -786,9 +831,7 @@ def _svg(
     return "\n".join(lines) + "\n"
 
 
-def _theme_style(
-    paths_by_color: list[tuple[str, list[str]]], dark_palette: list[str]
-) -> list[str]:
+def _theme_style(paths_by_color: list[tuple[str, list[str]]], dark_palette: list[str]) -> list[str]:
     lines = ["  <style>"]
     lines.append("    :root {")
     for index, (color, _paths) in enumerate(paths_by_color, start=1):

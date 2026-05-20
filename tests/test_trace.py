@@ -2,8 +2,10 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import pytest
 
 from open_vectorizer import TraceOptions, trace_image
+from open_vectorizer.cli import build_parser
 from open_vectorizer.trace import (
     _closed_bezier_fit_path,
     _closed_catmull_rom_path,
@@ -53,6 +55,99 @@ def test_trace_can_embed_light_and_dark_theme_palettes() -> None:
     assert "--ov-group-2: #f4ead8;" in svg
     assert ".shape-group-1 { fill: var(--ov-group-1, #c77832); }" in svg
     assert 'class="shape-group shape-group-1"' in svg
+
+
+def test_trace_normalizes_short_hex_palette_colors() -> None:
+    source = Path("examples/keel-compressed.jpg")
+    svg = trace_image(
+        source,
+        TraceOptions(
+            groups=2,
+            resize_long_side=600,
+            palette=["#ABC", "#111111"],
+            dark_palette=["#DEF", "#F4EAD8"],
+            simplify=3.0,
+        ),
+    )
+
+    assert "--ov-group-1: #aabbcc;" in svg
+    assert "--ov-group-1: #ddeeff;" in svg
+    assert 'fill="#ABC"' not in svg
+
+
+def test_trace_rejects_non_hex_palette_colors() -> None:
+    source = Path("examples/keel-compressed.jpg")
+
+    with pytest.raises(ValueError, match="palette colors must be hex values"):
+        trace_image(
+            source,
+            TraceOptions(
+                groups=2,
+                resize_long_side=600,
+                palette=["#36d7d4", "url(#paint)"],
+                simplify=3.0,
+            ),
+        )
+
+
+def test_cli_parser_rejects_non_hex_palette_colors() -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["input.png", "output.svg", "--palette", "#36d7d4,not-a-color"])
+
+
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [
+        ("--groups", "0"),
+        ("--resize", "-1"),
+        ("--padding", "-1"),
+        ("--threshold", "-1"),
+        ("--alpha-threshold", "256"),
+        ("--mask-blur", "-0.1"),
+        ("--simplify", "-0.1"),
+        ("--contour-smooth", "-1"),
+        ("--curve-spacing", "-0.1"),
+        ("--corner-angle", "181"),
+        ("--corner-radius", "-0.1"),
+        ("--corner-rounding", "-1"),
+        ("--curve-fit-error", "-0.1"),
+        ("--min-area", "-0.1"),
+    ],
+)
+def test_cli_parser_rejects_invalid_numeric_ranges(flag: str, value: str) -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["input.png", "output.svg", flag, value])
+
+
+@pytest.mark.parametrize(
+    ("option", "value", "message"),
+    [
+        ("groups", 0, "groups must be at least 1"),
+        ("resize_long_side", -1, "resize_long_side must be at least 0"),
+        ("padding", -1, "padding must be at least 0"),
+        ("background_threshold", -1.0, "background_threshold must be at least 0.0"),
+        ("alpha_threshold", 256.0, "alpha_threshold must be between 0.0 and 255.0"),
+        ("mask_blur", -0.1, "mask_blur must be at least 0.0"),
+        ("simplify", -0.1, "simplify must be at least 0.0"),
+        ("contour_smooth", -1, "contour_smooth must be at least 0"),
+        ("curve_spacing", -0.1, "curve_spacing must be at least 0.0"),
+        ("corner_angle", 181.0, "corner_angle must be between 0.0 and 180.0"),
+        ("corner_radius", -0.1, "corner_radius must be at least 0.0"),
+        ("corner_rounding", -1, "corner_rounding must be at least 0"),
+        ("curve_fit_error", -0.1, "curve_fit_error must be at least 0.0"),
+        ("min_area", -0.1, "min_area must be at least 0.0"),
+    ],
+)
+def test_trace_rejects_invalid_option_ranges(option: str, value: float, message: str) -> None:
+    source = Path("examples/keel-compressed.jpg")
+    options = TraceOptions(**{option: value})
+
+    with pytest.raises(ValueError, match=message):
+        trace_image(source, options)
 
 
 def test_smooth_closed_contour_dampens_boundary_jitter() -> None:

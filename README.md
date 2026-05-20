@@ -51,6 +51,30 @@ For the included `keel-compressed.jpg` example, the result is three total paths:
 two black strokes. The generated paths use cubic Bezier segments throughout, including the broad
 blade edges.
 
+Palette entries must be hex colors in `#rgb` or `#rrggbb` form. Short colors are expanded and
+all palette values are normalized to lowercase before they are written into SVG attributes or theme
+CSS.
+
+## CLI Options
+
+The most important tracing controls are:
+
+- `--groups`: expected foreground color groups before SVG emission.
+- `--palette`: comma-separated light-mode hex fills, assigned in traced group order.
+- `--dark-palette`: optional dark-mode hex fills emitted through CSS custom properties.
+- `--threshold`: RGB distance from the estimated border background required for foreground.
+- `--alpha-threshold`: alpha cutoff used when tracing transparent artwork.
+- `--mask-blur`: Gaussian sigma for fairing binary masks before contour extraction.
+- `--contour-smooth`: wrapped smoothing window for dampening raster stair-steps.
+- `--curve-spacing`: arc-length spacing for resampling long contours before fitting.
+- `--corner-radius`: optional rounded-corner offset before cubic fitting.
+- `--curve-fit-error`: recursive cubic Bezier fit tolerance; set `0` for Catmull-Rom output.
+- `--min-area`: connected-component area floor for ignoring specks and compression debris.
+
+Numeric options are validated before tracing starts. Counts, distances, areas, and smoothing
+settings must be non-negative, `--groups` must be at least `1`, `--alpha-threshold` must be between
+`0` and `255`, and `--corner-angle` must be between `0` and `180`.
+
 ## Why This Approach
 
 Vector Magic appears to use an automatic full-color tracing pipeline with image-type detection,
