@@ -96,9 +96,12 @@ CSS.
 
 ## CLI Options
 
-The most important tracing controls are:
+The tracing controls are:
 
 - `--groups`: expected foreground color groups before SVG emission.
+- `--resize`: longest side used for tracing; use `0` to keep the original size.
+- `--padding`: transparent crop padding around the foreground bounding box.
+- `--no-crop`: keep the original image viewBox instead of cropping to foreground.
 - `--palette`: comma-separated light-mode hex fills, assigned in traced group order.
 - `--dark-palette`: optional dark-mode hex fills emitted through CSS custom properties.
 - `--background`: optional hex background override when the image border is not reliable.
@@ -107,9 +110,12 @@ The most important tracing controls are:
 - `--threshold`: RGB distance from the estimated border background required for foreground.
 - `--alpha-threshold`: alpha cutoff used when tracing transparent artwork.
 - `--mask-blur`: Gaussian sigma for fairing binary masks before contour extraction.
+- `--simplify`: Ramer-Douglas-Peucker contour simplification in pixels.
 - `--contour-smooth`: wrapped smoothing window for dampening raster stair-steps.
 - `--curve-spacing`: arc-length spacing for resampling long contours before fitting.
 - `--corner-radius`: optional rounded-corner offset before cubic fitting.
+- `--corner-angle`: angles at or below this value keep crisp curve handles.
+- `--corner-rounding`: Chaikin corner-cut iterations before spline fitting.
 - `--curve-fit-error`: recursive cubic Bezier fit tolerance; set `0` for Catmull-Rom output.
 - `--min-area`: connected-component area floor for ignoring specks and compression debris.
 
