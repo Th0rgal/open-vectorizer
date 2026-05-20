@@ -1,0 +1,58 @@
+# Open Vectorizer
+
+Open Vectorizer is an open source raster-to-SVG tracer for low-color artwork, logos, and icons.
+It is built around the same practical stages used by high-quality commercial tracers:
+
+1. estimate and remove the background from border pixels,
+2. cluster foreground pixels into a small number of color groups,
+3. clean each group with morphology,
+4. extract contours,
+5. simplify boundaries,
+6. fit smooth cubic SVG paths.
+
+The first target is clean logo reconstruction: a small number of semantic shape groups with elegant
+curves instead of thousands of pixel-like fragments.
+
+## Install
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+pip install -e .
+```
+
+## Example
+
+```bash
+open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
+  --groups 2 \
+  --palette '#36d7d4,#111111' \
+  --resize 1200 \
+  --simplify 3.2 \
+  --threshold 8 \
+  --min-area 1000
+```
+
+This produces two SVG groups: one teal group and one black group, on a transparent background.
+For the included `keel-compressed.jpg` example, the result is three total paths: one teal blade and
+two black strokes.
+
+## Why This Approach
+
+Vector Magic appears to use an automatic full-color tracing pipeline with image-type detection,
+color reduction, anti-alias-aware edge placement, curve fitting, and manual cleanup tools. Public
+documentation describes the user-visible behavior, but not the proprietary implementation details.
+
+Open Vectorizer starts with the strongest open building blocks for this class of image:
+
+- color quantization for semantic groups,
+- contour tracing over cleaned masks,
+- Ramer-Douglas-Peucker simplification,
+- Catmull-Rom-to-cubic Bezier fitting for compact, editable SVG paths.
+
+Future work should add optional centerline tracing, better topology handling for holes, palette
+locking, and a browser UI with live threshold/simplification controls.
+
+## License
+
+MIT
