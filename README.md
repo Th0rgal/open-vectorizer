@@ -1,6 +1,7 @@
 # Open Vectorizer
 
 Open Vectorizer is an open source raster-to-SVG tracer for low-color artwork, logos, and icons.
+The Python package ships a `py.typed` marker, so type checkers can read its inline annotations.
 It is built around the same practical stages used by high-quality commercial tracers:
 
 1. estimate and remove the background from border pixels,

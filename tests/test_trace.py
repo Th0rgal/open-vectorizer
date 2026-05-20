@@ -1,4 +1,5 @@
 from pathlib import Path
+from importlib.resources import files
 import sys
 
 import cv2
@@ -170,6 +171,10 @@ def test_cli_parser_reports_installed_version(capsys: pytest.CaptureFixture[str]
 
 def test_package_exposes_installed_version() -> None:
     assert __version__ == "0.1.0"
+
+
+def test_package_includes_typed_marker() -> None:
+    assert files("open_vectorizer").joinpath("py.typed").is_file()
 
 
 def test_cli_main_writes_svg_with_normalized_palette(
