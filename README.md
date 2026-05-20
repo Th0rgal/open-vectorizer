@@ -38,6 +38,8 @@ Check the installed CLI version with:
 open-vectorizer --version
 ```
 
+Python callers can read the same package metadata from `open_vectorizer.__version__`.
+
 ## Example
 
 ```bash

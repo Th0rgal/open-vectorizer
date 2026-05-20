@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import pytest
 
-from open_vectorizer import TraceOptions, trace_image
+from open_vectorizer import TraceOptions, __version__, trace_image
 from open_vectorizer.cli import build_parser, main
 from open_vectorizer.trace import (
     _closed_bezier_fit_path,
@@ -149,6 +149,10 @@ def test_cli_parser_reports_installed_version(capsys: pytest.CaptureFixture[str]
 
     assert exc_info.value.code == 0
     assert capsys.readouterr().out.startswith("open-vectorizer 0.1.0")
+
+
+def test_package_exposes_installed_version() -> None:
+    assert __version__ == "0.1.0"
 
 
 def test_cli_main_writes_svg_with_normalized_palette(
