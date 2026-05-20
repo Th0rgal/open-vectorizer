@@ -24,6 +24,14 @@ python -m venv .venv
 pip install -e .
 ```
 
+For development tools:
+
+```bash
+pip install -e '.[dev]'
+pytest -q
+ruff check .
+```
+
 ## Example
 
 ```bash

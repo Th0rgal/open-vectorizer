@@ -16,6 +16,12 @@ dependencies = [
   "pillow>=10.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.15",
+]
+
 [project.scripts]
 open-vectorizer = "open_vectorizer.cli:main"
 
@@ -25,4 +31,3 @@ where = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-
