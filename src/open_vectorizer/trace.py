@@ -23,15 +23,25 @@ class TraceOptions:
     corner_rounding: int = 1
     min_area: float = 18.0
     palette: list[str] | None = None
+    alpha_threshold: float = 8.0
 
 
 def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
     opts = options or TraceOptions()
-    rgb = _load_rgb(path, opts.resize_long_side)
+    rgb, alpha = _load_rgba(path, opts.resize_long_side)
     background = _estimate_background(rgb)
-    foreground = _foreground_mask(rgb, background, opts.background_threshold)
+    has_alpha = bool(np.any(alpha < 255))
+    foreground = _foreground_mask(
+        rgb, background, opts.background_threshold, alpha, opts.alpha_threshold
+    )
     masks, colors = _cluster_foreground(
-        rgb, foreground, background, opts.background_threshold, opts.groups, opts.palette
+        rgb,
+        foreground,
+        background,
+        opts.background_threshold,
+        opts.groups,
+        opts.palette,
+        has_alpha,
     )
 
     if opts.crop:
@@ -59,13 +69,19 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
 
 
 def _load_rgb(path: str | Path, resize_long_side: int) -> np.ndarray:
-    image = Image.open(path).convert("RGB")
+    rgb, _alpha = _load_rgba(path, resize_long_side)
+    return rgb
+
+
+def _load_rgba(path: str | Path, resize_long_side: int) -> tuple[np.ndarray, np.ndarray]:
+    image = Image.open(path).convert("RGBA")
     if resize_long_side and max(image.size) > resize_long_side:
         scale = resize_long_side / max(image.size)
         image = image.resize(
             (round(image.width * scale), round(image.height * scale)), Image.Resampling.LANCZOS
         )
-    return np.asarray(image)
+    rgba = np.asarray(image)
+    return rgba[:, :, :3], rgba[:, :, 3]
 
 
 def _estimate_background(rgb: np.ndarray) -> np.ndarray:
@@ -81,9 +97,18 @@ def _estimate_background(rgb: np.ndarray) -> np.ndarray:
     return np.median(border.astype(np.float32), axis=0)
 
 
-def _foreground_mask(rgb: np.ndarray, background: np.ndarray, threshold: float) -> np.ndarray:
-    distance = np.linalg.norm(rgb.astype(np.float32) - background, axis=2)
-    mask = (distance > threshold).astype(np.uint8) * 255
+def _foreground_mask(
+    rgb: np.ndarray,
+    background: np.ndarray,
+    threshold: float,
+    alpha: np.ndarray | None = None,
+    alpha_threshold: float = 8.0,
+) -> np.ndarray:
+    if alpha is not None and np.any(alpha < 255):
+        mask = (alpha.astype(np.float32) > alpha_threshold).astype(np.uint8) * 255
+    else:
+        distance = np.linalg.norm(rgb.astype(np.float32) - background, axis=2)
+        mask = (distance > threshold).astype(np.uint8) * 255
     kernel = np.ones((2, 2), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
     return mask
@@ -96,6 +121,7 @@ def _cluster_foreground(
     background_threshold: float,
     groups: int,
     palette: list[str] | None,
+    alpha_foreground: bool = False,
 ) -> tuple[list[np.ndarray], list[str]]:
     pixels = rgb[foreground > 0].reshape(-1, 3).astype(np.float32)
     if len(pixels) == 0:
@@ -121,8 +147,11 @@ def _cluster_foreground(
     masks: list[np.ndarray] = []
     colors: list[str] = []
     for cluster_index in order:
-        if groups > 1 and _rgb_distance(centers[cluster_index], background) <= max(
-            background_threshold * 4.0, background_threshold + 12.0
+        if (
+            not alpha_foreground
+            and groups > 1
+            and _rgb_distance(centers[cluster_index], background)
+            <= max(background_threshold * 4.0, background_threshold + 12.0)
         ):
             continue
         mask = (full == cluster_index).astype(np.uint8) * 255
@@ -225,14 +254,34 @@ def _contour_to_path(
     corner_radius: float,
     corner_rounding: int,
 ) -> str:
-    contour = _smooth_closed_contour(contour, contour_smooth, corner_angle)
+    contour = _smooth_closed_contour(
+        contour, _contour_smooth_window(contour, contour_smooth), corner_angle
+    )
     approx = cv2.approxPolyDP(contour, simplify, closed=True).reshape(-1, 2).astype(float)
     if len(approx) < 4:
         return ""
     if corner_radius > 0:
-        return _rounded_closed_path(approx, corner_radius)
+        approx = _rounded_closed_points(approx, corner_radius)
     approx = _chaikin_closed(approx, corner_rounding)
     return _closed_catmull_rom_path(approx, corner_angle)
+
+
+def _contour_smooth_window(contour: np.ndarray, requested: int) -> int:
+    if requested <= 1 or len(contour) < 8:
+        return requested
+
+    perimeter = cv2.arcLength(contour, closed=True)
+    if perimeter == 0.0:
+        return requested
+
+    stroke_width = 2.0 * cv2.contourArea(contour) / perimeter
+    if stroke_width >= requested:
+        return requested
+
+    capped = max(3, int(round(stroke_width * 0.5)))
+    if capped % 2 == 0:
+        capped += 1
+    return min(requested, capped)
 
 
 def _smooth_closed_contour(
@@ -361,6 +410,43 @@ def _chaikin_closed(points: np.ndarray, iterations: int, ratio: float = 0.22) ->
             rounded.append(current * ratio + following * (1.0 - ratio))
         result = np.array(rounded, dtype=float)
     return result
+
+
+def _rounded_closed_points(points: np.ndarray, radius: float) -> np.ndarray:
+    p = points.astype(float)
+    if radius <= 0 or len(p) < 4:
+        return p
+
+    rounded: list[np.ndarray] = []
+    n = len(p)
+    for index in range(n):
+        previous = p[(index - 1) % n]
+        current = p[index]
+        following = p[(index + 1) % n]
+
+        incoming = previous - current
+        outgoing = following - current
+        incoming_length = float(np.linalg.norm(incoming))
+        outgoing_length = float(np.linalg.norm(outgoing))
+        if incoming_length == 0.0 or outgoing_length == 0.0:
+            rounded.append(current)
+            continue
+
+        angle = _corner_angle(previous, current, following)
+        if angle > 175.0:
+            rounded.append(current)
+            continue
+
+        angle_scale = max(0.35, min(1.0, np.sin(np.radians(angle / 2.0))))
+        cut = min(radius * angle_scale, incoming_length * 0.45, outgoing_length * 0.45)
+        if cut < 0.5:
+            rounded.append(current)
+            continue
+
+        rounded.append(current + (incoming / incoming_length) * cut)
+        rounded.append(current + (outgoing / outgoing_length) * cut)
+
+    return np.array(rounded, dtype=float)
 
 
 def _rounded_closed_path(points: np.ndarray, radius: float) -> str:

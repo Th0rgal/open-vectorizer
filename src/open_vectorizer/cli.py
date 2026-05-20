@@ -17,6 +17,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resize", type=int, default=1200, help="Longest side used for tracing")
     parser.add_argument("--padding", type=int, default=32, help="Transparent viewBox padding")
     parser.add_argument("--threshold", type=float, default=8.0, help="Background distance threshold")
+    parser.add_argument(
+        "--alpha-threshold",
+        type=float,
+        default=8.0,
+        help="Alpha threshold used to detect foreground in transparent images",
+    )
     parser.add_argument("--simplify", type=float, default=3.2, help="Contour simplification in pixels")
     parser.add_argument(
         "--contour-smooth",
@@ -66,6 +72,7 @@ def main() -> None:
             crop=not args.no_crop,
             padding=args.padding,
             background_threshold=args.threshold,
+            alpha_threshold=args.alpha_threshold,
             simplify=args.simplify,
             contour_smooth=args.contour_smooth,
             corner_angle=args.corner_angle,

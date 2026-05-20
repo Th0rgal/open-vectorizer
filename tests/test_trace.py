@@ -4,7 +4,13 @@ import cv2
 import numpy as np
 
 from open_vectorizer import TraceOptions, trace_image
-from open_vectorizer.trace import _closed_catmull_rom_path, _rounded_closed_path, _smooth_closed_contour
+from open_vectorizer.trace import (
+    _closed_catmull_rom_path,
+    _contour_smooth_window,
+    _rounded_closed_path,
+    _rounded_closed_points,
+    _smooth_closed_contour,
+)
 
 
 def test_trace_outputs_grouped_svg(tmp_path: Path) -> None:
@@ -50,6 +56,25 @@ def test_smooth_closed_contour_dampens_boundary_jitter() -> None:
     assert _total_turn(smoothed) < _total_turn(raw)
 
 
+def test_thin_contours_use_smaller_smoothing_window() -> None:
+    mask = np.zeros((80, 80), dtype=np.uint8)
+    cv2.rectangle(mask, (10, 36), (70, 40), 255, -1)
+    contours, _hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+    window = _contour_smooth_window(contours[0], 21)
+
+    assert 3 <= window < 21
+    assert window % 2 == 1
+
+
+def test_broad_contours_keep_requested_smoothing_window() -> None:
+    mask = np.zeros((80, 80), dtype=np.uint8)
+    cv2.rectangle(mask, (10, 10), (70, 70), 255, -1)
+    contours, _hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+    assert _contour_smooth_window(contours[0], 21) == 21
+
+
 def test_shallow_bends_keep_curve_handles() -> None:
     points = np.array(
         [
@@ -83,6 +108,25 @@ def test_rounded_path_offsets_corners() -> None:
     assert "L 52.93 0" in path
 
 
+def test_rounded_points_feed_cubic_spline_without_line_segments() -> None:
+    points = np.array(
+        [
+            [0.0, 0.0],
+            [60.0, 0.0],
+            [60.0, 60.0],
+            [0.0, 60.0],
+        ]
+    )
+
+    rounded = _rounded_closed_points(points, radius=10.0)
+    path = _closed_catmull_rom_path(rounded, corner_angle=0.0)
+
+    assert len(rounded) == 8
+    assert "C " in path
+    assert "L " not in path
+    assert "Q " not in path
+
+
 def test_trace_preserves_background_holes(tmp_path: Path) -> None:
     image_path = tmp_path / "ring.png"
     mask = np.zeros((120, 120, 3), dtype=np.uint8)
@@ -103,6 +147,29 @@ def test_trace_preserves_background_holes(tmp_path: Path) -> None:
 
     assert 'fill-rule="evenodd"' in svg
     assert svg.count("M ") >= 2
+
+
+def test_trace_uses_alpha_foreground_for_transparent_black_artwork(tmp_path: Path) -> None:
+    image_path = tmp_path / "transparent-black.png"
+    image = np.zeros((80, 80, 4), dtype=np.uint8)
+    cv2.rectangle(image, (20, 18), (60, 62), (0, 0, 0, 255), -1)
+    cv2.circle(image, (24, 24), 10, (54, 215, 212, 255), -1)
+    cv2.imwrite(str(image_path), cv2.cvtColor(image, cv2.COLOR_RGBA2BGRA))
+
+    svg = trace_image(
+        image_path,
+        TraceOptions(
+            groups=2,
+            resize_long_side=80,
+            palette=["#36d7d4", "#111111"],
+            simplify=1.0,
+            min_area=50,
+        ),
+    )
+
+    assert '<g id="shape-group-1" fill="#36d7d4" fill-rule="evenodd">' in svg
+    assert '<g id="shape-group-2" fill="#111111" fill-rule="evenodd">' in svg
+    assert svg.count("<path") == 2
 
 
 def _total_turn(points: np.ndarray) -> float:

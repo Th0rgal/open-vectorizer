@@ -8,8 +8,8 @@ It is built around the same practical stages used by high-quality commercial tra
 3. clean each group with morphology,
 4. extract contours,
 5. simplify boundaries,
-6. round corner vertices,
-7. fit smooth cubic SVG paths.
+6. offset corner vertices into rounded control points,
+7. fit smooth cubic SVG paths around the entire contour.
 
 The first target is clean logo reconstruction: a small number of semantic shape groups with elegant
 curves instead of thousands of pixel-like fragments.
@@ -29,9 +29,10 @@ open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
   --groups 2 \
   --palette '#36d7d4,#111111' \
   --resize 1200 \
-  --simplify 2.4 \
-  --contour-smooth 21 \
-  --corner-angle 0 \
+  --simplify 1.98 \
+  --contour-smooth 15 \
+  --corner-angle 60 \
+  --corner-radius 3.25 \
   --corner-rounding 1 \
   --threshold 8 \
   --min-area 1000
@@ -39,7 +40,8 @@ open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
 
 This produces two SVG groups: one teal group and one black group, on a transparent background.
 For the included `keel-compressed.jpg` example, the result is three total paths: one teal blade and
-two black strokes.
+two black strokes. The generated paths use cubic Bezier segments throughout, including the broad
+teal blade edges.
 
 ## Why This Approach
 
@@ -52,7 +54,8 @@ Open Vectorizer starts with the strongest open building blocks for this class of
 - color quantization for semantic groups,
 - contour tracing over cleaned masks,
 - Ramer-Douglas-Peucker simplification,
-- Chaikin corner cutting to create real corner radius before curve fitting,
+- radius-based corner offsetting before curve fitting,
+- Chaikin corner cutting for additional smoothing,
 - Catmull-Rom-to-cubic Bezier fitting for compact, editable SVG paths.
 
 Future work should add optional centerline tracing, better topology handling for holes, palette
