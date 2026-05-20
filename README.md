@@ -154,6 +154,7 @@ Open Vectorizer starts with the strongest open building blocks for this class of
 
 Future work should add optional centerline tracing, better topology handling for holes, palette
 locking, and a browser UI with live threshold/simplification controls.
+See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for current fit, weak spots, and tuning tips.
 
 ## License
 
