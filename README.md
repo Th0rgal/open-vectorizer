@@ -8,7 +8,8 @@ It is built around the same practical stages used by high-quality commercial tra
 3. clean each group with morphology,
 4. extract contours,
 5. simplify boundaries,
-6. fit smooth cubic SVG paths.
+6. round corner vertices,
+7. fit smooth cubic SVG paths.
 
 The first target is clean logo reconstruction: a small number of semantic shape groups with elegant
 curves instead of thousands of pixel-like fragments.
@@ -28,9 +29,10 @@ open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
   --groups 2 \
   --palette '#36d7d4,#111111' \
   --resize 1200 \
-  --simplify 2.0 \
+  --simplify 2.4 \
   --contour-smooth 21 \
-  --corner-angle 100 \
+  --corner-angle 0 \
+  --corner-rounding 1 \
   --threshold 8 \
   --min-area 1000
 ```
@@ -50,6 +52,7 @@ Open Vectorizer starts with the strongest open building blocks for this class of
 - color quantization for semantic groups,
 - contour tracing over cleaned masks,
 - Ramer-Douglas-Peucker simplification,
+- Chaikin corner cutting to create real corner radius before curve fitting,
 - Catmull-Rom-to-cubic Bezier fitting for compact, editable SVG paths.
 
 Future work should add optional centerline tracing, better topology handling for holes, palette

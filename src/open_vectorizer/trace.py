@@ -18,7 +18,9 @@ class TraceOptions:
     background_threshold: float = 8.0
     simplify: float = 3.2
     contour_smooth: int = 15
-    corner_angle: float = 100.0
+    corner_angle: float = 0.0
+    corner_radius: float = 0.0
+    corner_rounding: int = 1
     min_area: float = 18.0
     palette: list[str] | None = None
 
@@ -42,7 +44,13 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
     for mask, color in zip(masks, colors, strict=True):
         clipped = mask[y0:y1, x0:x1]
         paths = _mask_to_paths(
-            clipped, opts.simplify, opts.min_area, opts.contour_smooth, opts.corner_angle
+            clipped,
+            opts.simplify,
+            opts.min_area,
+            opts.contour_smooth,
+            opts.corner_angle,
+            opts.corner_radius,
+            opts.corner_rounding,
         )
         if paths:
             paths_by_color.append((color, paths))
@@ -153,7 +161,13 @@ def _mask_bbox(mask: np.ndarray, padding: int, width: int, height: int) -> tuple
 
 
 def _mask_to_paths(
-    mask: np.ndarray, simplify: float, min_area: float, contour_smooth: int, corner_angle: float
+    mask: np.ndarray,
+    simplify: float,
+    min_area: float,
+    contour_smooth: int,
+    corner_angle: float,
+    corner_radius: float,
+    corner_rounding: int,
 ) -> list[str]:
     contours, hierarchy = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
     if hierarchy is None:
@@ -171,12 +185,30 @@ def _mask_to_paths(
         area = cv2.contourArea(contour)
         if area < min_area or len(contour) < 8:
             continue
-        subpaths = [_contour_to_path(contour, simplify, contour_smooth, corner_angle)]
+        subpaths = [
+            _contour_to_path(
+                contour,
+                simplify,
+                contour_smooth,
+                corner_angle,
+                corner_radius,
+                corner_rounding,
+            )
+        ]
         child_index = contour_hierarchy[contour_index][2]
         while child_index != -1:
             child = contours[child_index]
             if cv2.contourArea(child) >= min_area and len(child) >= 8:
-                subpaths.append(_contour_to_path(child, simplify, contour_smooth, corner_angle))
+                subpaths.append(
+                    _contour_to_path(
+                        child,
+                        simplify,
+                        contour_smooth,
+                        corner_angle,
+                        corner_radius,
+                        corner_rounding,
+                    )
+                )
             child_index = contour_hierarchy[child_index][0]
         subpaths = [path for path in subpaths if path]
         if not subpaths:
@@ -186,12 +218,20 @@ def _mask_to_paths(
 
 
 def _contour_to_path(
-    contour: np.ndarray, simplify: float, contour_smooth: int, corner_angle: float
+    contour: np.ndarray,
+    simplify: float,
+    contour_smooth: int,
+    corner_angle: float,
+    corner_radius: float,
+    corner_rounding: int,
 ) -> str:
     contour = _smooth_closed_contour(contour, contour_smooth, corner_angle)
     approx = cv2.approxPolyDP(contour, simplify, closed=True).reshape(-1, 2).astype(float)
     if len(approx) < 4:
         return ""
+    if corner_radius > 0:
+        return _rounded_closed_path(approx, corner_radius)
+    approx = _chaikin_closed(approx, corner_rounding)
     return _closed_catmull_rom_path(approx, corner_angle)
 
 
@@ -302,6 +342,77 @@ def _closed_catmull_rom_path(points: np.ndarray, corner_angle: float) -> str:
             f"{_fmt(c1[0])} {_fmt(c1[1])} "
             f"{_fmt(c2[0])} {_fmt(c2[1])} "
             f"{_fmt(p2[0])} {_fmt(p2[1])}"
+        )
+    parts.append("Z")
+    return " ".join(parts)
+
+
+def _chaikin_closed(points: np.ndarray, iterations: int, ratio: float = 0.22) -> np.ndarray:
+    if iterations <= 0 or len(points) < 4:
+        return points
+
+    result = points.astype(float)
+    for _ in range(iterations):
+        rounded: list[np.ndarray] = []
+        for index in range(len(result)):
+            current = result[index]
+            following = result[(index + 1) % len(result)]
+            rounded.append(current * (1.0 - ratio) + following * ratio)
+            rounded.append(current * ratio + following * (1.0 - ratio))
+        result = np.array(rounded, dtype=float)
+    return result
+
+
+def _rounded_closed_path(points: np.ndarray, radius: float) -> str:
+    p = points.astype(float)
+    n = len(p)
+    entries = np.empty_like(p)
+    exits = np.empty_like(p)
+
+    for index in range(n):
+        previous = p[(index - 1) % n]
+        current = p[index]
+        following = p[(index + 1) % n]
+
+        incoming = previous - current
+        outgoing = following - current
+        incoming_length = float(np.linalg.norm(incoming))
+        outgoing_length = float(np.linalg.norm(outgoing))
+        if incoming_length == 0.0 or outgoing_length == 0.0:
+            entries[index] = current
+            exits[index] = current
+            continue
+
+        angle = _corner_angle(previous, current, following)
+        if angle > 175.0:
+            entries[index] = current
+            exits[index] = current
+            continue
+
+        # Clip the radius to local edge lengths so small features are rounded without
+        # swallowing the shape. Sharper angles get a slightly shorter cut.
+        angle_scale = max(0.35, min(1.0, np.sin(np.radians(angle / 2.0))))
+        cut = min(radius * angle_scale, incoming_length * 0.45, outgoing_length * 0.45)
+        if cut < 0.5:
+            entries[index] = current
+            exits[index] = current
+            continue
+
+        entries[index] = current + (incoming / incoming_length) * cut
+        exits[index] = current + (outgoing / outgoing_length) * cut
+
+    parts = [f"M {_fmt(exits[0, 0])} {_fmt(exits[0, 1])}"]
+    for index in range(n):
+        following_index = (index + 1) % n
+        entry = entries[following_index]
+        corner = p[following_index]
+        exit_point = exits[following_index]
+        if np.linalg.norm(entry - p[index]) > 0.1:
+            parts.append(f"L {_fmt(entry[0])} {_fmt(entry[1])}")
+        parts.append(
+            "Q "
+            f"{_fmt(corner[0])} {_fmt(corner[1])} "
+            f"{_fmt(exit_point[0])} {_fmt(exit_point[1])}"
         )
     parts.append("Z")
     return " ".join(parts)

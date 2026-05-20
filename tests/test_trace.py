@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 from open_vectorizer import TraceOptions, trace_image
-from open_vectorizer.trace import _closed_catmull_rom_path, _smooth_closed_contour
+from open_vectorizer.trace import _closed_catmull_rom_path, _rounded_closed_path, _smooth_closed_contour
 
 
 def test_trace_outputs_grouped_svg(tmp_path: Path) -> None:
@@ -22,6 +22,7 @@ def test_trace_outputs_grouped_svg(tmp_path: Path) -> None:
     assert '<g id="shape-group-1" fill="#36d7d4" fill-rule="evenodd">' in svg
     assert '<g id="shape-group-2" fill="#111111" fill-rule="evenodd">' in svg
     assert svg.count("<path") >= 2
+    assert "C 309 407 309 407 309 407" not in svg
 
 
 def test_smooth_closed_contour_dampens_boundary_jitter() -> None:
@@ -63,6 +64,23 @@ def test_shallow_bends_keep_curve_handles() -> None:
     path = _closed_catmull_rom_path(points, corner_angle=100.0)
 
     assert "C 30 6 30 6 30 6" not in path
+
+
+def test_rounded_path_offsets_corners() -> None:
+    points = np.array(
+        [
+            [0.0, 0.0],
+            [60.0, 0.0],
+            [60.0, 60.0],
+            [0.0, 60.0],
+        ]
+    )
+
+    path = _rounded_closed_path(points, radius=10.0)
+
+    assert "Q 60 0 60 7.07" in path
+    assert "Q 60 60 52.93 60" in path
+    assert "L 52.93 0" in path
 
 
 def test_trace_preserves_background_holes(tmp_path: Path) -> None:

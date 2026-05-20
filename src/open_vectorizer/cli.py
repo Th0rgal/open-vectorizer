@@ -27,8 +27,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--corner-angle",
         type=float,
-        default=100.0,
-        help="Angles at or below this value keep crisp corner handles",
+        default=0.0,
+        help="Angles at or below this value keep crisp handles; 0 disables corner clamping",
+    )
+    parser.add_argument(
+        "--corner-radius",
+        type=float,
+        default=0.0,
+        help="Optional radius in pixels used to round simplified contour corners",
+    )
+    parser.add_argument(
+        "--corner-rounding",
+        type=int,
+        default=1,
+        help="Chaikin corner-cut iterations before spline fitting",
     )
     parser.add_argument("--min-area", type=float, default=18.0, help="Small component removal threshold")
     parser.add_argument("--no-crop", action="store_true", help="Keep the original image viewBox")
@@ -57,6 +69,8 @@ def main() -> None:
             simplify=args.simplify,
             contour_smooth=args.contour_smooth,
             corner_angle=args.corner_angle,
+            corner_radius=args.corner_radius,
+            corner_rounding=args.corner_rounding,
             min_area=args.min_area,
             palette=palette,
         ),

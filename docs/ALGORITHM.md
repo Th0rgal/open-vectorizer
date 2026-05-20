@@ -18,8 +18,9 @@ logos.
    fitting curves.
 8. Remove small contours with `--min-area`.
 9. Simplify contours with Ramer-Douglas-Peucker.
-10. Convert simplified contours to closed cubic Bezier paths using Catmull-Rom control points.
-11. Emit one SVG `<g>` per color group with even-odd fill for compound paths.
+10. Cut simplified polygon corners with Chaikin smoothing so sharp raster vertices get real radius.
+11. Convert the rounded contours to closed cubic Bezier paths using Catmull-Rom control points.
+12. Emit one SVG `<g>` per color group with even-odd fill for compound paths.
 
 ## Keel Experiment
 
@@ -32,9 +33,10 @@ open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
   --groups 2 \
   --palette '#36d7d4,#111111' \
   --resize 1200 \
-  --simplify 2.0 \
+  --simplify 2.4 \
   --contour-smooth 21 \
-  --corner-angle 100 \
+  --corner-angle 0 \
+  --corner-rounding 1 \
   --threshold 8 \
   --min-area 1000
 ```
@@ -47,8 +49,10 @@ The output has two shape groups and three total paths:
 The keel's left edge is especially sensitive to JPEG stair-step noise because the contour is long,
 thin, and shallowly curved. Tracing the raw binary boundary can leave visible segment-to-segment
 changes after cubic fitting. The contour smoothing pass dampens those one-pixel wiggles before
-simplification, and the corner detector only locks genuinely sharp angles. Shallow bends keep their
-Catmull-Rom handles, which avoids segmented-looking curves on the green blade.
+simplification. The key fix for the visibly sharp green corner was to stop clamping Bezier handles
+onto detected vertices and instead apply one Chaikin corner-cut pass before Catmull-Rom fitting.
+That physically moves the path off the corner, creating real radius instead of a cubic command with
+collapsed handles.
 
 ## Future Work
 
