@@ -5,6 +5,7 @@ import numpy as np
 
 from open_vectorizer import TraceOptions, trace_image
 from open_vectorizer.trace import (
+    _closed_bezier_fit_path,
     _closed_catmull_rom_path,
     _contour_smooth_window,
     _resample_closed_points,
@@ -143,6 +144,23 @@ def test_resample_closed_points_adds_even_curve_anchors() -> None:
 
     assert len(resampled) == 20
     assert np.max(lengths) <= 10.5
+
+
+def test_bezier_fit_emits_only_cubic_segments_for_smooth_contours() -> None:
+    angles = np.linspace(0, 2 * np.pi, 32, endpoint=False)
+    points = np.column_stack(
+        [
+            50.0 + np.cos(angles) * (25.0 + np.sin(angles * 5.0) * 0.5),
+            50.0 + np.sin(angles) * 18.0,
+        ]
+    )
+
+    path = _closed_bezier_fit_path(points, max_error=1.2)
+
+    assert path.startswith("M ")
+    assert "C " in path
+    assert "L " not in path
+    assert "Q " not in path
 
 
 def test_trace_preserves_background_holes(tmp_path: Path) -> None:

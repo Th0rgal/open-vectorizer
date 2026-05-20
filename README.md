@@ -6,11 +6,12 @@ It is built around the same practical stages used by high-quality commercial tra
 1. estimate and remove the background from border pixels,
 2. cluster foreground pixels into a small number of color groups,
 3. clean each group with morphology,
-4. extract contours,
-5. smooth and optionally simplify boundaries,
-6. resample long outlines at even arc-length spacing,
-7. offset corner vertices into rounded control points,
-8. fit smooth cubic SVG paths around the entire contour.
+4. optionally fair binary masks to remove compression stair-steps,
+5. extract contours,
+6. smooth and optionally simplify boundaries,
+7. resample long outlines at even arc-length spacing,
+8. offset corner vertices into rounded control points,
+9. fit smooth cubic SVG paths around the entire contour.
 
 The first target is clean logo reconstruction: a small number of semantic shape groups with elegant
 curves instead of thousands of pixel-like fragments.
@@ -30,12 +31,14 @@ open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
   --groups 2 \
   --palette '#36d7d4,#111111' \
   --resize 1200 \
+  --mask-blur 1.0 \
   --simplify 1.98 \
-  --contour-smooth 15 \
-  --curve-spacing 14 \
+  --contour-smooth 25 \
+  --curve-spacing 16 \
   --corner-angle 60 \
   --corner-radius 3.25 \
   --corner-rounding 1 \
+  --curve-fit-error 1.5 \
   --threshold 8 \
   --min-area 1000
 ```
@@ -59,7 +62,7 @@ Open Vectorizer starts with the strongest open building blocks for this class of
 - arc-length resampling so long design curves get enough spline anchors,
 - radius-based corner offsetting before curve fitting,
 - Chaikin corner cutting for additional smoothing,
-- Catmull-Rom-to-cubic Bezier fitting for compact, editable SVG paths.
+- recursive least-squares cubic Bezier fitting for compact, editable SVG paths.
 
 Future work should add optional centerline tracing, better topology handling for holes, palette
 locking, and a browser UI with live threshold/simplification controls.

@@ -14,17 +14,22 @@ logos.
    from the background.
 4. Cluster foreground pixels into semantic color groups with k-means.
 5. Clean each group mask with morphological close/open passes.
-6. Extract contour hierarchies for each group, including background-colored holes.
-7. Smooth each closed contour with a wrapped Hann window to reduce JPEG stair-steps before fitting
+6. Optionally fair binary masks with a light Gaussian blur and re-threshold. This removes
+   compression stair-steps before they become real curve bends.
+7. Extract contour hierarchies for each group, including background-colored holes.
+8. Smooth each closed contour with a wrapped Hann window to reduce JPEG stair-steps before fitting
    curves, capping the window on thin contours so narrow strokes keep their coverage.
-8. Remove small contours with `--min-area`.
-9. Simplify contours with Ramer-Douglas-Peucker, or resample smoothed contours at even arc-length
+9. Remove small contours with `--min-area`.
+10. Simplify contours with Ramer-Douglas-Peucker, or resample smoothed contours at even arc-length
    spacing when the artwork has long shallow curves.
-10. Offset simplified/resampled contour corners into rounded point pairs so sharp raster vertices get real
+11. Offset simplified/resampled contour corners into rounded point pairs so sharp raster vertices get real
     radius without creating straight line SVG segments.
-11. Apply optional Chaikin smoothing to the rounded points.
-12. Convert the rounded contours to closed cubic Bezier paths using Catmull-Rom control points.
-13. Emit one SVG `<g>` per color group with even-odd fill for compound paths.
+12. Apply optional Chaikin smoothing to the rounded points.
+13. Convert the rounded contours to closed cubic Bezier paths. The default fitter recursively
+    approximates point runs with least-squares cubic Beziers, which keeps smooth logo curves from
+    inheriting every small raster jitter as a visible bend. Catmull-Rom fitting is still available
+    by setting `--curve-fit-error 0`.
+14. Emit one SVG `<g>` per color group with even-odd fill for compound paths.
 
 ## Keel Experiment
 
@@ -37,12 +42,14 @@ open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
   --groups 2 \
   --palette '#36d7d4,#111111' \
   --resize 1200 \
+  --mask-blur 1.0 \
   --simplify 1.98 \
-  --contour-smooth 15 \
-  --curve-spacing 14 \
+  --contour-smooth 25 \
+  --curve-spacing 16 \
   --corner-angle 60 \
   --corner-radius 3.25 \
   --corner-rounding 1 \
+  --curve-fit-error 1.5 \
   --threshold 8 \
   --min-area 1000
 ```
@@ -54,12 +61,12 @@ The output has two shape groups and three total paths:
 
 The keel's left edge is especially sensitive to JPEG stair-step noise because the contour is long,
 thin, and shallowly curved. Tracing the raw binary boundary can leave visible segment-to-segment
-changes after cubic fitting. The contour smoothing pass dampens those one-pixel wiggles before
-simplification, while the adaptive smoothing cap avoids eroding thin black strokes. A naive
+changes after cubic fitting. The mask fairing and contour smoothing passes dampen those one-pixel
+wiggles before fitting, while the adaptive smoothing cap avoids eroding thin black strokes. A naive
 corner-radius pass made the corners round but left straight `L` segments between them. The current
-approach instead resamples the smoothed contour before corner rounding and cubic fitting. That gives
-long shallow edges enough control points to read as continuous SVG curvature instead of straight
-chords.
+approach instead resamples the smoothed contour, rounds raster corners, then fits approximating
+cubic Beziers. That gives long shallow edges continuous SVG curvature without forcing the path
+through every noisy contour point.
 
 ## Future Work
 

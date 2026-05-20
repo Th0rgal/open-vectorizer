@@ -23,6 +23,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=8.0,
         help="Alpha threshold used to detect foreground in transparent images",
     )
+    parser.add_argument(
+        "--mask-blur",
+        type=float,
+        default=0.0,
+        help="Gaussian sigma used to fair binary color masks before contour extraction",
+    )
     parser.add_argument("--simplify", type=float, default=3.2, help="Contour simplification in pixels")
     parser.add_argument(
         "--contour-smooth",
@@ -54,6 +60,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         help="Chaikin corner-cut iterations before spline fitting",
     )
+    parser.add_argument(
+        "--curve-fit-error",
+        type=float,
+        default=1.2,
+        help="Approximate contours with recursive least-squares cubic Beziers at this error",
+    )
     parser.add_argument("--min-area", type=float, default=18.0, help="Small component removal threshold")
     parser.add_argument("--no-crop", action="store_true", help="Keep the original image viewBox")
     parser.add_argument(
@@ -79,12 +91,14 @@ def main() -> None:
             padding=args.padding,
             background_threshold=args.threshold,
             alpha_threshold=args.alpha_threshold,
+            mask_blur=args.mask_blur,
             simplify=args.simplify,
             contour_smooth=args.contour_smooth,
             curve_spacing=args.curve_spacing,
             corner_angle=args.corner_angle,
             corner_radius=args.corner_radius,
             corner_rounding=args.corner_rounding,
+            curve_fit_error=args.curve_fit_error,
             min_area=args.min_area,
             palette=palette,
         ),

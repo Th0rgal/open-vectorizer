@@ -22,9 +22,11 @@ class TraceOptions:
     corner_angle: float = 0.0
     corner_radius: float = 0.0
     corner_rounding: int = 1
+    curve_fit_error: float = 1.2
     min_area: float = 18.0
     palette: list[str] | None = None
     alpha_threshold: float = 8.0
+    mask_blur: float = 0.0
 
 
 def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
@@ -43,6 +45,7 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
         opts.groups,
         opts.palette,
         has_alpha,
+        opts.mask_blur,
     )
 
     if opts.crop:
@@ -63,6 +66,7 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
             opts.corner_angle,
             opts.corner_radius,
             opts.corner_rounding,
+            opts.curve_fit_error,
         )
         if paths:
             paths_by_color.append((color, paths))
@@ -124,6 +128,7 @@ def _cluster_foreground(
     groups: int,
     palette: list[str] | None,
     alpha_foreground: bool = False,
+    mask_blur: float = 0.0,
 ) -> tuple[list[np.ndarray], list[str]]:
     pixels = rgb[foreground > 0].reshape(-1, 3).astype(np.float32)
     if len(pixels) == 0:
@@ -157,7 +162,7 @@ def _cluster_foreground(
         ):
             continue
         mask = (full == cluster_index).astype(np.uint8) * 255
-        mask = _clean_mask(mask)
+        mask = _clean_mask(mask, mask_blur)
         if np.count_nonzero(mask) == 0:
             continue
         masks.append(mask)
@@ -172,10 +177,13 @@ def _rgb_distance(left: np.ndarray, right: np.ndarray) -> float:
     return float(np.linalg.norm(left.astype(np.float32) - right.astype(np.float32)))
 
 
-def _clean_mask(mask: np.ndarray) -> np.ndarray:
+def _clean_mask(mask: np.ndarray, blur_sigma: float = 0.0) -> np.ndarray:
     kernel = np.ones((2, 2), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+    if blur_sigma > 0:
+        blurred = cv2.GaussianBlur(mask, (0, 0), blur_sigma)
+        _threshold, mask = cv2.threshold(blurred, 127, 255, cv2.THRESH_BINARY)
     return mask
 
 
@@ -200,6 +208,7 @@ def _mask_to_paths(
     corner_angle: float,
     corner_radius: float,
     corner_rounding: int,
+    curve_fit_error: float,
 ) -> list[str]:
     contours, hierarchy = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
     if hierarchy is None:
@@ -226,6 +235,7 @@ def _mask_to_paths(
                 corner_angle,
                 corner_radius,
                 corner_rounding,
+                curve_fit_error,
             )
         ]
         child_index = contour_hierarchy[contour_index][2]
@@ -241,6 +251,7 @@ def _mask_to_paths(
                         corner_angle,
                         corner_radius,
                         corner_rounding,
+                        curve_fit_error,
                     )
                 )
             child_index = contour_hierarchy[child_index][0]
@@ -259,6 +270,7 @@ def _contour_to_path(
     corner_angle: float,
     corner_radius: float,
     corner_rounding: int,
+    curve_fit_error: float,
 ) -> str:
     contour = _smooth_closed_contour(
         contour, _contour_smooth_window(contour, contour_smooth), corner_angle
@@ -272,6 +284,8 @@ def _contour_to_path(
     if corner_radius > 0:
         approx = _rounded_closed_points(approx, corner_radius)
     approx = _chaikin_closed(approx, corner_rounding)
+    if curve_fit_error > 0:
+        return _closed_bezier_fit_path(approx, curve_fit_error)
     return _closed_catmull_rom_path(approx, corner_angle)
 
 
@@ -431,6 +445,205 @@ def _closed_catmull_rom_path(points: np.ndarray, corner_angle: float) -> str:
         )
     parts.append("Z")
     return " ".join(parts)
+
+
+def _closed_bezier_fit_path(points: np.ndarray, max_error: float) -> str:
+    p = _remove_near_duplicate_points(points.astype(float), min_distance=0.25)
+    if len(p) < 4:
+        return ""
+
+    start = _lowest_curvature_index(p)
+    p = np.roll(p, -start, axis=0)
+    open_points = np.vstack([p, p[0]])
+    tangent = _unit_vector(open_points[1] - open_points[-2])
+    if np.linalg.norm(tangent) == 0.0:
+        tangent = _unit_vector(open_points[1] - open_points[0])
+
+    curves = _fit_cubic_sequence(open_points, max_error, tangent, tangent, depth=0)
+    parts = [f"M {_fmt(open_points[0, 0])} {_fmt(open_points[0, 1])}"]
+    for curve in curves:
+        parts.append(
+            "C "
+            f"{_fmt(curve[1, 0])} {_fmt(curve[1, 1])} "
+            f"{_fmt(curve[2, 0])} {_fmt(curve[2, 1])} "
+            f"{_fmt(curve[3, 0])} {_fmt(curve[3, 1])}"
+        )
+    parts.append("Z")
+    return " ".join(parts)
+
+
+def _remove_near_duplicate_points(points: np.ndarray, min_distance: float) -> np.ndarray:
+    if len(points) < 2:
+        return points
+
+    kept = [points[0]]
+    for point in points[1:]:
+        if np.linalg.norm(point - kept[-1]) >= min_distance:
+            kept.append(point)
+    if len(kept) > 1 and np.linalg.norm(kept[0] - kept[-1]) < min_distance:
+        kept.pop()
+    return np.array(kept, dtype=float)
+
+
+def _lowest_curvature_index(points: np.ndarray) -> int:
+    if len(points) < 4:
+        return 0
+
+    best_index = 0
+    best_score = float("inf")
+    for index in range(len(points)):
+        previous = points[(index - 1) % len(points)]
+        current = points[index]
+        following = points[(index + 1) % len(points)]
+        turn = abs(180.0 - _corner_angle(previous, current, following))
+        span = np.linalg.norm(following - previous)
+        score = turn / max(float(span), 1.0)
+        if score < best_score:
+            best_score = score
+            best_index = index
+    return best_index
+
+
+def _fit_cubic_sequence(
+    points: np.ndarray,
+    max_error: float,
+    left_tangent: np.ndarray,
+    right_tangent: np.ndarray,
+    depth: int,
+) -> list[np.ndarray]:
+    if len(points) == 2:
+        return [_fallback_cubic(points[0], points[1], left_tangent, right_tangent)]
+
+    parameters = _chord_parameters(points)
+    curve = _generate_cubic(points, parameters, left_tangent, right_tangent)
+    split_index, error = _max_bezier_error(points, curve, parameters)
+    if error <= max_error**2 or depth >= 24:
+        return [curve]
+
+    center_tangent = _center_tangent(points, split_index)
+    left = _fit_cubic_sequence(
+        points[: split_index + 1],
+        max_error,
+        left_tangent,
+        center_tangent,
+        depth + 1,
+    )
+    right = _fit_cubic_sequence(
+        points[split_index:],
+        max_error,
+        -center_tangent,
+        right_tangent,
+        depth + 1,
+    )
+    return left + right
+
+
+def _generate_cubic(
+    points: np.ndarray,
+    parameters: np.ndarray,
+    left_tangent: np.ndarray,
+    right_tangent: np.ndarray,
+) -> np.ndarray:
+    p0 = points[0]
+    p3 = points[-1]
+    c = np.zeros((2, 2), dtype=float)
+    x = np.zeros(2, dtype=float)
+
+    for point, u in zip(points, parameters, strict=True):
+        b0, b1, b2, b3 = _bernstein3(float(u))
+        a1 = left_tangent * b1
+        a2 = right_tangent * b2
+        tmp = point - ((p0 * (b0 + b1)) + (p3 * (b2 + b3)))
+        c[0, 0] += float(np.dot(a1, a1))
+        c[0, 1] += float(np.dot(a1, a2))
+        c[1, 0] = c[0, 1]
+        c[1, 1] += float(np.dot(a2, a2))
+        x[0] += float(np.dot(a1, tmp))
+        x[1] += float(np.dot(a2, tmp))
+
+    det = (c[0, 0] * c[1, 1]) - (c[0, 1] * c[1, 0])
+    segment_length = float(np.linalg.norm(p3 - p0))
+    epsilon = 1.0e-6 * segment_length
+    if abs(det) > 1.0e-12:
+        alpha_left = ((x[0] * c[1, 1]) - (x[1] * c[0, 1])) / det
+        alpha_right = ((c[0, 0] * x[1]) - (c[1, 0] * x[0])) / det
+    else:
+        alpha_left = alpha_right = segment_length / 3.0
+
+    max_alpha = max(segment_length * 1.75, epsilon)
+    if (
+        alpha_left < epsilon
+        or alpha_right < epsilon
+        or alpha_left > max_alpha
+        or alpha_right > max_alpha
+    ):
+        return _fallback_cubic(p0, p3, left_tangent, right_tangent)
+
+    return np.array(
+        [
+            p0,
+            p0 + (left_tangent * alpha_left),
+            p3 + (right_tangent * alpha_right),
+            p3,
+        ],
+        dtype=float,
+    )
+
+
+def _fallback_cubic(
+    p0: np.ndarray, p3: np.ndarray, left_tangent: np.ndarray, right_tangent: np.ndarray
+) -> np.ndarray:
+    distance = float(np.linalg.norm(p3 - p0)) / 3.0
+    return np.array([p0, p0 + left_tangent * distance, p3 + right_tangent * distance, p3])
+
+
+def _chord_parameters(points: np.ndarray) -> np.ndarray:
+    lengths = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    total = float(lengths.sum())
+    if total == 0.0:
+        return np.linspace(0.0, 1.0, len(points))
+    cumulative = np.concatenate([[0.0], np.cumsum(lengths)])
+    return cumulative / total
+
+
+def _max_bezier_error(
+    points: np.ndarray, curve: np.ndarray, parameters: np.ndarray
+) -> tuple[int, float]:
+    split_index = max(1, len(points) // 2)
+    max_error = -1.0
+    for index in range(1, len(points) - 1):
+        projected = _bezier_point(curve, float(parameters[index]))
+        error = float(np.sum((projected - points[index]) ** 2))
+        if error > max_error:
+            max_error = error
+            split_index = index
+    return split_index, max_error
+
+
+def _center_tangent(points: np.ndarray, center_index: int) -> np.ndarray:
+    previous = points[max(0, center_index - 1)]
+    following = points[min(len(points) - 1, center_index + 1)]
+    tangent = _unit_vector(following - previous)
+    if np.linalg.norm(tangent) == 0.0:
+        tangent = _unit_vector(points[-1] - points[0])
+    return tangent
+
+
+def _unit_vector(vector: np.ndarray) -> np.ndarray:
+    length = float(np.linalg.norm(vector))
+    if length == 0.0:
+        return np.zeros(2, dtype=float)
+    return vector / length
+
+
+def _bernstein3(u: float) -> tuple[float, float, float, float]:
+    inverse = 1.0 - u
+    return inverse**3, 3.0 * u * inverse**2, 3.0 * u**2 * inverse, u**3
+
+
+def _bezier_point(curve: np.ndarray, u: float) -> np.ndarray:
+    b0, b1, b2, b3 = _bernstein3(u)
+    return (curve[0] * b0) + (curve[1] * b1) + (curve[2] * b2) + (curve[3] * b3)
 
 
 def _chaikin_closed(points: np.ndarray, iterations: int, ratio: float = 0.22) -> np.ndarray:
