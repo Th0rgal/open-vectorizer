@@ -33,6 +33,28 @@ def test_trace_outputs_grouped_svg(tmp_path: Path) -> None:
     assert "C 309 407 309 407 309 407" not in svg
 
 
+def test_trace_can_embed_light_and_dark_theme_palettes() -> None:
+    source = Path("examples/keel-compressed.jpg")
+    svg = trace_image(
+        source,
+        TraceOptions(
+            groups=2,
+            resize_long_side=600,
+            palette=["#2f9f8f", "#171717"],
+            dark_palette=["#8edbc8", "#f4ead8"],
+            simplify=3.0,
+        ),
+    )
+
+    assert "@media (prefers-color-scheme: dark)" in svg
+    assert "--ov-group-1: #2f9f8f;" in svg
+    assert "--ov-group-2: #171717;" in svg
+    assert "--ov-group-1: #8edbc8;" in svg
+    assert "--ov-group-2: #f4ead8;" in svg
+    assert ".shape-group-1 { fill: var(--ov-group-1, #2f9f8f); }" in svg
+    assert 'class="shape-group shape-group-1"' in svg
+
+
 def test_smooth_closed_contour_dampens_boundary_jitter() -> None:
     mask = np.zeros((80, 80), dtype=np.uint8)
     points = np.array(

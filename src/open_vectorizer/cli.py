@@ -73,6 +73,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Comma-separated fill colors. Example: '#36d7d4,#111111'",
     )
+    parser.add_argument(
+        "--dark-palette",
+        default=None,
+        help=(
+            "Comma-separated fill colors used inside @media (prefers-color-scheme: dark). "
+            "Example: '#8edbc8,#f4ead8'"
+        ),
+    )
     return parser
 
 
@@ -81,6 +89,9 @@ def main() -> None:
     palette = None
     if args.palette:
         palette = [color.strip() for color in args.palette.split(",") if color.strip()]
+    dark_palette = None
+    if args.dark_palette:
+        dark_palette = [color.strip() for color in args.dark_palette.split(",") if color.strip()]
 
     svg = trace_image(
         args.input,
@@ -101,6 +112,7 @@ def main() -> None:
             curve_fit_error=args.curve_fit_error,
             min_area=args.min_area,
             palette=palette,
+            dark_palette=dark_palette,
         ),
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)

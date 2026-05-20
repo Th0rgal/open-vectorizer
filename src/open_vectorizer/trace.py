@@ -25,6 +25,7 @@ class TraceOptions:
     curve_fit_error: float = 1.2
     min_area: float = 18.0
     palette: list[str] | None = None
+    dark_palette: list[str] | None = None
     alpha_threshold: float = 8.0
     mask_blur: float = 0.0
 
@@ -71,7 +72,7 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
         if paths:
             paths_by_color.append((color, paths))
 
-    return _svg(width, height, paths_by_color)
+    return _svg(width, height, paths_by_color, opts.dark_palette)
 
 
 def _load_rgb(path: str | Path, resize_long_side: int) -> np.ndarray:
@@ -754,20 +755,55 @@ def _rounded_closed_path(points: np.ndarray, radius: float) -> str:
     return " ".join(parts)
 
 
-def _svg(width: int, height: int, paths_by_color: list[tuple[str, list[str]]]) -> str:
+def _svg(
+    width: int,
+    height: int,
+    paths_by_color: list[tuple[str, list[str]]],
+    dark_palette: list[str] | None = None,
+) -> str:
     lines = [
         '<svg xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="0 0 {width} {height}" width="{width}" height="{height}" '
         'role="img" aria-label="Vectorized artwork">',
         '  <title>Vectorized artwork</title>',
     ]
+    if dark_palette:
+        lines.extend(_theme_style(paths_by_color, dark_palette))
     for index, (color, paths) in enumerate(paths_by_color, start=1):
-        lines.append(f'  <g id="shape-group-{index}" fill="{escape(color)}" fill-rule="evenodd">')
+        if dark_palette:
+            lines.append(
+                f'  <g id="shape-group-{index}" class="shape-group shape-group-{index}" '
+                'fill-rule="evenodd">'
+            )
+        else:
+            lines.append(
+                f'  <g id="shape-group-{index}" fill="{escape(color)}" fill-rule="evenodd">'
+            )
         for path in paths:
             lines.append(f'    <path d="{path}"/>')
         lines.append("  </g>")
     lines.append("</svg>")
     return "\n".join(lines) + "\n"
+
+
+def _theme_style(
+    paths_by_color: list[tuple[str, list[str]]], dark_palette: list[str]
+) -> list[str]:
+    lines = ["  <style>"]
+    lines.append("    :root {")
+    for index, (color, _paths) in enumerate(paths_by_color, start=1):
+        lines.append(f"      --ov-group-{index}: {color};")
+    lines.append("    }")
+    for index, (color, _paths) in enumerate(paths_by_color, start=1):
+        lines.append(f"    .shape-group-{index} {{ fill: var(--ov-group-{index}, {color}); }}")
+    lines.append("    @media (prefers-color-scheme: dark) {")
+    lines.append("      :root {")
+    for index, color in enumerate(dark_palette[: len(paths_by_color)], start=1):
+        lines.append(f"        --ov-group-{index}: {color};")
+    lines.append("      }")
+    lines.append("    }")
+    lines.append("  </style>")
+    return lines
 
 
 def _hex(rgb: np.ndarray) -> str:
