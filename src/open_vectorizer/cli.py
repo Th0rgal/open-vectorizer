@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from .trace import TraceOptions, _normalize_hex_color, trace_image
@@ -11,6 +12,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="open-vectorizer",
         description="Convert low-color raster artwork into grouped, smooth SVG paths.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {_package_version()}",
     )
     parser.add_argument("input", type=Path, help="Input raster image")
     parser.add_argument("output", type=Path, help="Output SVG path")
@@ -176,6 +182,13 @@ def _parse_float(name: str, value: str) -> float:
         return float(value)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(f"{name} must be a number") from exc
+
+
+def _package_version() -> str:
+    try:
+        return version("open-vectorizer")
+    except PackageNotFoundError:
+        return "0+unknown"
 
 
 def main() -> None:

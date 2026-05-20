@@ -141,6 +141,16 @@ def test_cli_parser_rejects_non_hex_background_color() -> None:
         parser.parse_args(["input.png", "output.svg", "--background", "white"])
 
 
+def test_cli_parser_reports_installed_version(capsys: pytest.CaptureFixture[str]) -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--version"])
+
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out.startswith("open-vectorizer 0.1.0")
+
+
 def test_cli_main_writes_svg_with_normalized_palette(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -32,6 +32,12 @@ pytest -q
 ruff check .
 ```
 
+Check the installed CLI version with:
+
+```bash
+open-vectorizer --version
+```
+
 ## Example
 
 ```bash
