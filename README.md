@@ -29,7 +29,7 @@ For development tools:
 
 ```bash
 pip install -e '.[dev]'
-pytest -q
+pytest
 ruff check .
 ```
 
