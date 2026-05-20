@@ -64,6 +64,25 @@ open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
   --min-area 1000
 ```
 
+The same tracer can be called from Python:
+
+```python
+from pathlib import Path
+
+from open_vectorizer import TraceOptions, trace_image
+
+svg = trace_image(
+    "examples/keel-compressed.jpg",
+    TraceOptions(
+        groups=2,
+        palette=["#c77832", "#171717"],
+        dark_palette=["#f0a45b", "#f4ead8"],
+        title="Keel mark",
+    ),
+)
+Path("examples/keel.svg").write_text(svg, encoding="utf-8")
+```
+
 This produces two SVG groups with a warm light palette and an embedded dark-mode palette. The SVG
 uses CSS custom properties plus `@media (prefers-color-scheme: dark)`, so the same file can adapt
 from copper and soft black on light backgrounds to amber and ivory on dark backgrounds.
