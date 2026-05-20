@@ -19,7 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
         version=f"%(prog)s {__version__}",
     )
     parser.add_argument("input", type=Path, help="Input raster image")
-    parser.add_argument("output", type=Path, help="Output SVG path")
+    parser.add_argument("output", type=Path, help="Output SVG path, or '-' for stdout")
     parser.add_argument(
         "--groups",
         type=_int_at_least("groups", 1),
@@ -209,8 +209,11 @@ def main() -> None:
             dark_palette=args.dark_palette,
         ),
     )
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(svg, encoding="utf-8")
+    if str(args.output) == "-":
+        print(svg, end="")
+    else:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(svg, encoding="utf-8")
 
 
 if __name__ == "__main__":

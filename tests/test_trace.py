@@ -192,6 +192,36 @@ def test_cli_main_writes_svg_with_normalized_palette(
     assert "<svg" in svg
 
 
+def test_cli_main_writes_svg_to_stdout(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "open-vectorizer",
+            "examples/keel-compressed.jpg",
+            "-",
+            "--groups",
+            "2",
+            "--resize",
+            "600",
+            "--palette",
+            "#ABC,#111111",
+            "--simplify",
+            "3",
+            "--min-area",
+            "1000",
+        ],
+    )
+
+    main()
+
+    stdout = capsys.readouterr().out
+    assert stdout.startswith("<svg")
+    assert 'fill="#aabbcc"' in stdout
+
+
 @pytest.mark.parametrize(
     ("flag", "value"),
     [

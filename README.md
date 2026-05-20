@@ -39,6 +39,7 @@ open-vectorizer --version
 ```
 
 Python callers can read the same package metadata from `open_vectorizer.__version__`.
+Use `-` as the output path to write SVG to stdout for shell pipelines.
 
 ## Example
 
