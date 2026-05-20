@@ -123,11 +123,6 @@ def _require_between(name: str, value: float, minimum: float, maximum: float) ->
         raise ValueError(f"{name} must be between {minimum} and {maximum}")
 
 
-def _load_rgb(path: str | Path, resize_long_side: int) -> np.ndarray:
-    rgb, _alpha = _load_rgba(path, resize_long_side)
-    return rgb
-
-
 def _load_rgba(path: str | Path, resize_long_side: int) -> tuple[np.ndarray, np.ndarray]:
     image = Image.open(path).convert("RGBA")
     if resize_long_side and max(image.size) > resize_long_side:

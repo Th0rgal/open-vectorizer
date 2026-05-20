@@ -74,7 +74,7 @@ through every noisy contour point.
 ## Future Work
 
 - Palette locking from user-picked swatches.
-- Hole-aware contour hierarchy.
+- More robust topology handling for deeply nested holes and overlapping groups.
 - Centerline tracing for calligraphic strokes.
 - Alternative curve fitting based on Potrace's polygon optimization.
 - Browser UI with live preview and per-group controls.

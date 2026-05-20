@@ -1,11 +1,12 @@
 from pathlib import Path
+import sys
 
 import cv2
 import numpy as np
 import pytest
 
 from open_vectorizer import TraceOptions, trace_image
-from open_vectorizer.cli import build_parser
+from open_vectorizer.cli import build_parser, main
 from open_vectorizer.trace import (
     _closed_bezier_fit_path,
     _closed_catmull_rom_path,
@@ -95,6 +96,41 @@ def test_cli_parser_rejects_non_hex_palette_colors() -> None:
 
     with pytest.raises(SystemExit):
         parser.parse_args(["input.png", "output.svg", "--palette", "#36d7d4,not-a-color"])
+
+
+def test_cli_main_writes_svg_with_normalized_palette(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "keel.svg"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "open-vectorizer",
+            "examples/keel-compressed.jpg",
+            str(output),
+            "--groups",
+            "2",
+            "--resize",
+            "600",
+            "--palette",
+            "#ABC,#111111",
+            "--dark-palette",
+            "#DEF,#F4EAD8",
+            "--simplify",
+            "3",
+            "--min-area",
+            "1000",
+        ],
+    )
+
+    main()
+
+    svg = output.read_text(encoding="utf-8")
+    assert output.exists()
+    assert "--ov-group-1: #aabbcc;" in svg
+    assert "--ov-group-1: #ddeeff;" in svg
+    assert "<svg" in svg
 
 
 @pytest.mark.parametrize(

@@ -75,6 +75,18 @@ Numeric options are validated before tracing starts. Counts, distances, areas, a
 settings must be non-negative, `--groups` must be at least `1`, `--alpha-threshold` must be between
 `0` and `255`, and `--corner-angle` must be between `0` and `180`.
 
+## Render Comparison
+
+`tools/compare_render.py` can render an SVG with `rsvg-convert` and compare it to a source image:
+
+```bash
+python tools/compare_render.py examples/keel-compressed.jpg examples/keel.svg \
+  --render /tmp/keel-render.png
+```
+
+It reports RGB/RGBA mean absolute error, RGB RMSE, alpha error, and max absolute channel error as
+JSON. Install `librsvg2-bin` or an equivalent package first so `rsvg-convert` is available.
+
 ## Why This Approach
 
 Vector Magic appears to use an automatic full-color tracing pipeline with image-type detection,
