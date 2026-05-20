@@ -1,6 +1,5 @@
-from pathlib import Path
 from importlib.resources import files
-import sys
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -189,15 +188,10 @@ def test_package_includes_typed_marker() -> None:
     assert files("open_vectorizer").joinpath("py.typed").is_file()
 
 
-def test_cli_main_writes_svg_with_normalized_palette(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_cli_main_writes_svg_with_normalized_palette(tmp_path: Path) -> None:
     output = tmp_path / "keel.svg"
-    monkeypatch.setattr(
-        sys,
-        "argv",
+    main(
         [
-            "open-vectorizer",
             "examples/keel-compressed.jpg",
             str(output),
             "--groups",
@@ -219,8 +213,6 @@ def test_cli_main_writes_svg_with_normalized_palette(
         ],
     )
 
-    main()
-
     svg = output.read_text(encoding="utf-8")
     assert output.exists()
     assert "--ov-group-1: #aabbcc;" in svg
@@ -229,14 +221,9 @@ def test_cli_main_writes_svg_with_normalized_palette(
     assert "<svg" in svg
 
 
-def test_cli_main_writes_svg_to_stdout(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setattr(
-        sys,
-        "argv",
+def test_cli_main_writes_svg_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
+    main(
         [
-            "open-vectorizer",
             "examples/keel-compressed.jpg",
             "-",
             "--groups",
@@ -251,8 +238,6 @@ def test_cli_main_writes_svg_to_stdout(
             "1000",
         ],
     )
-
-    main()
 
     stdout = capsys.readouterr().out
     assert stdout.startswith("<svg")

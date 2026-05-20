@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from . import __version__
@@ -195,8 +195,8 @@ def _parse_float(name: str, value: str) -> float:
         raise argparse.ArgumentTypeError(f"{name} must be a number") from exc
 
 
-def main() -> None:
-    args = build_parser().parse_args()
+def main(argv: Sequence[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
     svg = trace_image(
         args.input,
         TraceOptions(
