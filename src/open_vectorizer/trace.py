@@ -10,6 +10,7 @@ import numpy as np
 from PIL import Image
 
 _HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+_MAX_OPENCV_RNG_SEED = (2**31) - 1
 
 
 @dataclass(frozen=True)
@@ -130,7 +131,7 @@ def _validate_options(options: TraceOptions) -> None:
     _require_between("alpha_threshold", options.alpha_threshold, 0.0, 255.0)
     _require_at_least("mask_blur", options.mask_blur, 0.0)
     if options.seed is not None:
-        _require_at_least("seed", options.seed, 0)
+        _require_between("seed", options.seed, 0, _MAX_OPENCV_RNG_SEED)
 
 
 def _require_at_least(name: str, value: float, minimum: float) -> None:

@@ -262,6 +262,7 @@ def test_cli_main_writes_svg_to_stdout(capsys: pytest.CaptureFixture[str]) -> No
         ("--curve-fit-error", "-0.1"),
         ("--min-area", "-0.1"),
         ("--seed", "-1"),
+        ("--seed", "2147483648"),
     ],
 )
 def test_cli_parser_rejects_invalid_numeric_ranges(flag: str, value: str) -> None:
@@ -288,7 +289,8 @@ def test_cli_parser_rejects_invalid_numeric_ranges(flag: str, value: str) -> Non
         ("corner_rounding", -1, "corner_rounding must be at least 0"),
         ("curve_fit_error", -0.1, "curve_fit_error must be at least 0.0"),
         ("min_area", -0.1, "min_area must be at least 0.0"),
-        ("seed", -1, "seed must be at least 0"),
+        ("seed", -1, "seed must be between 0 and 2147483647"),
+        ("seed", 2147483648, "seed must be between 0 and 2147483647"),
     ],
 )
 def test_trace_rejects_invalid_option_ranges(option: str, value: float, message: str) -> None:

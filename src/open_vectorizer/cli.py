@@ -5,7 +5,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from . import __version__
-from .trace import TraceOptions, _normalize_hex_color, trace_image
+from .trace import TraceOptions, _MAX_OPENCV_RNG_SEED, _normalize_hex_color, trace_image
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -57,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--seed",
-        type=_int_at_least("seed", 0),
+        type=_int_between("seed", 0, _MAX_OPENCV_RNG_SEED),
         default=0,
         help="OpenCV k-means RNG seed for reproducible color grouping",
     )
@@ -157,12 +157,19 @@ def _parse_color(value: str) -> str:
 
 def _int_at_least(name: str, minimum: int) -> Callable[[str], int]:
     def parse(value: str) -> int:
-        try:
-            parsed = int(value)
-        except ValueError as exc:
-            raise argparse.ArgumentTypeError(f"{name} must be an integer") from exc
+        parsed = _parse_int(name, value)
         if parsed < minimum:
             raise argparse.ArgumentTypeError(f"{name} must be at least {minimum}")
+        return parsed
+
+    return parse
+
+
+def _int_between(name: str, minimum: int, maximum: int) -> Callable[[str], int]:
+    def parse(value: str) -> int:
+        parsed = _parse_int(name, value)
+        if parsed < minimum or parsed > maximum:
+            raise argparse.ArgumentTypeError(f"{name} must be between {minimum} and {maximum}")
         return parsed
 
     return parse
@@ -193,6 +200,13 @@ def _parse_float(name: str, value: str) -> float:
         return float(value)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(f"{name} must be a number") from exc
+
+
+def _parse_int(name: str, value: str) -> int:
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{name} must be an integer") from exc
 
 
 def main(argv: Sequence[str] | None = None) -> None:

@@ -94,7 +94,8 @@ The most important tracing controls are:
 
 Numeric options are validated before tracing starts. Counts, distances, areas, and smoothing
 settings must be non-negative, `--groups` must be at least `1`, `--alpha-threshold` must be between
-`0` and `255`, and `--corner-angle` must be between `0` and `180`.
+`0` and `255`, `--corner-angle` must be between `0` and `180`, and `--seed` must fit in OpenCV's
+signed 32-bit RNG seed range.
 
 ## Render Comparison
 
