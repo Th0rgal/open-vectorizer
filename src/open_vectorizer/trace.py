@@ -17,6 +17,8 @@ class TraceOptions:
     padding: int = 32
     background_threshold: float = 8.0
     simplify: float = 3.2
+    contour_smooth: int = 15
+    corner_angle: float = 100.0
     min_area: float = 18.0
     palette: list[str] | None = None
 
@@ -26,7 +28,9 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
     rgb = _load_rgb(path, opts.resize_long_side)
     background = _estimate_background(rgb)
     foreground = _foreground_mask(rgb, background, opts.background_threshold)
-    masks, colors = _cluster_foreground(rgb, foreground, opts.groups, opts.palette)
+    masks, colors = _cluster_foreground(
+        rgb, foreground, background, opts.background_threshold, opts.groups, opts.palette
+    )
 
     if opts.crop:
         x0, y0, x1, y1 = _mask_bbox(foreground, opts.padding, rgb.shape[1], rgb.shape[0])
@@ -37,7 +41,9 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
     paths_by_color: list[tuple[str, list[str]]] = []
     for mask, color in zip(masks, colors, strict=True):
         clipped = mask[y0:y1, x0:x1]
-        paths = _mask_to_paths(clipped, opts.simplify, opts.min_area)
+        paths = _mask_to_paths(
+            clipped, opts.simplify, opts.min_area, opts.contour_smooth, opts.corner_angle
+        )
         if paths:
             paths_by_color.append((color, paths))
 
@@ -76,7 +82,12 @@ def _foreground_mask(rgb: np.ndarray, background: np.ndarray, threshold: float) 
 
 
 def _cluster_foreground(
-    rgb: np.ndarray, foreground: np.ndarray, groups: int, palette: list[str] | None
+    rgb: np.ndarray,
+    foreground: np.ndarray,
+    background: np.ndarray,
+    background_threshold: float,
+    groups: int,
+    palette: list[str] | None,
 ) -> tuple[list[np.ndarray], list[str]]:
     pixels = rgb[foreground > 0].reshape(-1, 3).astype(np.float32)
     if len(pixels) == 0:
@@ -101,17 +112,25 @@ def _cluster_foreground(
 
     masks: list[np.ndarray] = []
     colors: list[str] = []
-    for out_index, cluster_index in enumerate(order):
+    for cluster_index in order:
+        if groups > 1 and _rgb_distance(centers[cluster_index], background) <= max(
+            background_threshold * 4.0, background_threshold + 12.0
+        ):
+            continue
         mask = (full == cluster_index).astype(np.uint8) * 255
         mask = _clean_mask(mask)
         if np.count_nonzero(mask) == 0:
             continue
         masks.append(mask)
-        if palette and out_index < len(palette):
-            colors.append(palette[out_index])
+        if palette and len(colors) < len(palette):
+            colors.append(palette[len(colors)])
         else:
             colors.append(_hex(centers[cluster_index]))
     return masks, colors
+
+
+def _rgb_distance(left: np.ndarray, right: np.ndarray) -> float:
+    return float(np.linalg.norm(left.astype(np.float32) - right.astype(np.float32)))
 
 
 def _clean_mask(mask: np.ndarray) -> np.ndarray:
@@ -133,25 +152,140 @@ def _mask_bbox(mask: np.ndarray, padding: int, width: int, height: int) -> tuple
     )
 
 
-def _mask_to_paths(mask: np.ndarray, simplify: float, min_area: float) -> list[str]:
-    contours, _hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+def _mask_to_paths(
+    mask: np.ndarray, simplify: float, min_area: float, contour_smooth: int, corner_angle: float
+) -> list[str]:
+    contours, hierarchy = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+    if hierarchy is None:
+        return []
+
+    contour_hierarchy = hierarchy[0]
     paths: list[str] = []
-    for contour in sorted(contours, key=cv2.contourArea, reverse=True):
+    external_indices = [
+        index for index, contour_info in enumerate(contour_hierarchy) if contour_info[3] == -1
+    ]
+    for contour_index in sorted(
+        external_indices, key=lambda index: cv2.contourArea(contours[index]), reverse=True
+    ):
+        contour = contours[contour_index]
         area = cv2.contourArea(contour)
         if area < min_area or len(contour) < 8:
             continue
-        approx = cv2.approxPolyDP(contour, simplify, closed=True).reshape(-1, 2).astype(float)
-        if len(approx) < 4:
+        subpaths = [_contour_to_path(contour, simplify, contour_smooth, corner_angle)]
+        child_index = contour_hierarchy[contour_index][2]
+        while child_index != -1:
+            child = contours[child_index]
+            if cv2.contourArea(child) >= min_area and len(child) >= 8:
+                subpaths.append(_contour_to_path(child, simplify, contour_smooth, corner_angle))
+            child_index = contour_hierarchy[child_index][0]
+        subpaths = [path for path in subpaths if path]
+        if not subpaths:
             continue
-        paths.append(_closed_catmull_rom_path(approx))
+        paths.append(" ".join(subpaths))
     return paths
 
 
-def _closed_catmull_rom_path(points: np.ndarray) -> str:
+def _contour_to_path(
+    contour: np.ndarray, simplify: float, contour_smooth: int, corner_angle: float
+) -> str:
+    contour = _smooth_closed_contour(contour, contour_smooth, corner_angle)
+    approx = cv2.approxPolyDP(contour, simplify, closed=True).reshape(-1, 2).astype(float)
+    if len(approx) < 4:
+        return ""
+    return _closed_catmull_rom_path(approx, corner_angle)
+
+
+def _smooth_closed_contour(
+    contour: np.ndarray, window: int, corner_angle: float = 100.0
+) -> np.ndarray:
+    points = contour.reshape(-1, 2).astype(np.float32)
+    if window <= 1 or len(points) < 8:
+        return points.reshape(-1, 1, 2)
+
+    if window % 2 == 0:
+        window += 1
+    window = min(window, len(points) - 1 if len(points) % 2 == 0 else len(points))
+    if window < 3:
+        return points.reshape(-1, 1, 2)
+
+    pad = window // 2
+    kernel = np.hanning(window).astype(np.float32)
+    if float(kernel.sum()) == 0.0:
+        kernel = np.ones(window, dtype=np.float32)
+    kernel /= kernel.sum()
+
+    wrapped = np.vstack([points[-pad:], points, points[:pad]])
+    xs = np.convolve(wrapped[:, 0], kernel, mode="valid")
+    ys = np.convolve(wrapped[:, 1], kernel, mode="valid")
+    smoothed = np.column_stack([xs, ys]).astype(np.float32)
+
+    corner_indices = _sharp_corner_indices(contour, window, corner_angle)
+    if corner_indices:
+        smoothed = _restore_corner_neighborhoods(points, smoothed, corner_indices, pad)
+
+    return smoothed.reshape(-1, 1, 2)
+
+
+def _sharp_corner_indices(contour: np.ndarray, window: int, corner_angle: float) -> list[int]:
+    epsilon = max(2.0, window / 3.0)
+    approx = cv2.approxPolyDP(contour, epsilon, closed=True).reshape(-1, 2).astype(np.float32)
+    if len(approx) < 3:
+        return []
+
+    points = contour.reshape(-1, 2).astype(np.float32)
+    corner_indices: list[int] = []
+    for index, current in enumerate(approx):
+        previous = approx[(index - 1) % len(approx)]
+        following = approx[(index + 1) % len(approx)]
+        if _corner_angle(previous, current, following) <= corner_angle:
+            distances = np.linalg.norm(points - current, axis=1)
+            corner_indices.append(int(np.argmin(distances)))
+    return corner_indices
+
+
+def _corner_angle(previous: np.ndarray, current: np.ndarray, following: np.ndarray) -> float:
+    left = previous - current
+    right = following - current
+    denominator = float(np.linalg.norm(left) * np.linalg.norm(right))
+    if denominator == 0.0:
+        return 180.0
+    cosine = float(np.dot(left, right) / denominator)
+    return float(np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0))))
+
+
+def _restore_corner_neighborhoods(
+    original: np.ndarray, smoothed: np.ndarray, corner_indices: list[int], radius: int
+) -> np.ndarray:
+    if radius <= 0:
+        return smoothed
+
+    result = smoothed.copy()
+    count = len(original)
+    indices = np.arange(count)
+    distances = np.full(count, count, dtype=np.float32)
+    for corner_index in corner_indices:
+        cyclic = np.abs(indices - corner_index)
+        distances = np.minimum(distances, np.minimum(cyclic, count - cyclic))
+
+    affected = distances < radius
+    weights = np.ones(count, dtype=np.float32)
+    weights[affected] = distances[affected] / radius
+    result[affected] = (
+        original[affected] * (1.0 - weights[affected, None])
+        + smoothed[affected] * weights[affected, None]
+    )
+    return result
+
+
+def _closed_catmull_rom_path(points: np.ndarray, corner_angle: float) -> str:
     p = points
     parts = [f"M {_fmt(p[0, 0])} {_fmt(p[0, 1])}"]
     n = len(p)
-    tension = 0.42
+    tension = 0.7
+    sharp = [
+        _corner_angle(p[(index - 1) % n], p[index], p[(index + 1) % n]) <= corner_angle
+        for index in range(n)
+    ]
     for i in range(n):
         p0 = p[(i - 1) % n]
         p1 = p[i]
@@ -159,6 +293,10 @@ def _closed_catmull_rom_path(points: np.ndarray) -> str:
         p3 = p[(i + 2) % n]
         c1 = p1 + (p2 - p0) * (tension / 6.0)
         c2 = p2 - (p3 - p1) * (tension / 6.0)
+        if sharp[i]:
+            c1 = p1
+        if sharp[(i + 1) % n]:
+            c2 = p2
         parts.append(
             "C "
             f"{_fmt(c1[0])} {_fmt(c1[1])} "
@@ -177,7 +315,7 @@ def _svg(width: int, height: int, paths_by_color: list[tuple[str, list[str]]]) -
         '  <title>Vectorized artwork</title>',
     ]
     for index, (color, paths) in enumerate(paths_by_color, start=1):
-        lines.append(f'  <g id="shape-group-{index}" fill="{escape(color)}">')
+        lines.append(f'  <g id="shape-group-{index}" fill="{escape(color)}" fill-rule="evenodd">')
         for path in paths:
             lines.append(f'    <path d="{path}"/>')
         lines.append("  </g>")

@@ -28,7 +28,9 @@ open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
   --groups 2 \
   --palette '#36d7d4,#111111' \
   --resize 1200 \
-  --simplify 3.2 \
+  --simplify 2.0 \
+  --contour-smooth 21 \
+  --corner-angle 100 \
   --threshold 8 \
   --min-area 1000
 ```

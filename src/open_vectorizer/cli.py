@@ -18,6 +18,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--padding", type=int, default=32, help="Transparent viewBox padding")
     parser.add_argument("--threshold", type=float, default=8.0, help="Background distance threshold")
     parser.add_argument("--simplify", type=float, default=3.2, help="Contour simplification in pixels")
+    parser.add_argument(
+        "--contour-smooth",
+        type=int,
+        default=15,
+        help="Odd-sized smoothing window applied to traced contours before simplification",
+    )
+    parser.add_argument(
+        "--corner-angle",
+        type=float,
+        default=100.0,
+        help="Angles at or below this value keep crisp corner handles",
+    )
     parser.add_argument("--min-area", type=float, default=18.0, help="Small component removal threshold")
     parser.add_argument("--no-crop", action="store_true", help="Keep the original image viewBox")
     parser.add_argument(
@@ -43,6 +55,8 @@ def main() -> None:
             padding=args.padding,
             background_threshold=args.threshold,
             simplify=args.simplify,
+            contour_smooth=args.contour_smooth,
+            corner_angle=args.corner_angle,
             min_area=args.min_area,
             palette=palette,
         ),
@@ -53,4 +67,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
