@@ -76,6 +76,18 @@ def test_trace_uses_accessible_svg_title() -> None:
     assert "aria-label='Keel &amp; Sail \"Mark\"'" in svg
 
 
+def test_trace_is_reproducible_with_default_seed() -> None:
+    source = Path("examples/keel-compressed.jpg")
+    options = TraceOptions(
+        groups=2,
+        resize_long_side=600,
+        palette=["#c77832", "#171717"],
+        simplify=3.0,
+    )
+
+    assert trace_image(source, options) == trace_image(source, options)
+
+
 def test_trace_normalizes_short_hex_palette_colors() -> None:
     source = Path("examples/keel-compressed.jpg")
     svg = trace_image(
@@ -264,6 +276,7 @@ def test_cli_main_writes_svg_to_stdout(
         ("--corner-rounding", "-1"),
         ("--curve-fit-error", "-0.1"),
         ("--min-area", "-0.1"),
+        ("--seed", "-1"),
     ],
 )
 def test_cli_parser_rejects_invalid_numeric_ranges(flag: str, value: str) -> None:
@@ -290,6 +303,7 @@ def test_cli_parser_rejects_invalid_numeric_ranges(flag: str, value: str) -> Non
         ("corner_rounding", -1, "corner_rounding must be at least 0"),
         ("curve_fit_error", -0.1, "curve_fit_error must be at least 0.0"),
         ("min_area", -0.1, "min_area must be at least 0.0"),
+        ("seed", -1, "seed must be at least 0"),
     ],
 )
 def test_trace_rejects_invalid_option_ranges(option: str, value: float, message: str) -> None:

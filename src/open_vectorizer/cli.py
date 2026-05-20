@@ -56,6 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Accessible SVG title and aria-label",
     )
     parser.add_argument(
+        "--seed",
+        type=_int_at_least("seed", 0),
+        default=0,
+        help="OpenCV k-means RNG seed for reproducible color grouping",
+    )
+    parser.add_argument(
         "--alpha-threshold",
         type=_float_between("alpha-threshold", 0.0, 255.0),
         default=8.0,
@@ -201,6 +207,7 @@ def main() -> None:
             background_threshold=args.threshold,
             background_color=args.background,
             title=args.title,
+            seed=args.seed,
             alpha_threshold=args.alpha_threshold,
             mask_blur=args.mask_blur,
             simplify=args.simplify,

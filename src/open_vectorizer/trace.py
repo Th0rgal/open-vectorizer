@@ -31,6 +31,7 @@ class TraceOptions:
     dark_palette: list[str] | None = None
     background_color: str | None = None
     title: str = "Vectorized artwork"
+    seed: int | None = 0
     alpha_threshold: float = 8.0
     mask_blur: float = 0.0
 
@@ -56,6 +57,7 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
         palette,
         has_alpha,
         opts.mask_blur,
+        opts.seed,
     )
 
     if opts.crop:
@@ -127,6 +129,8 @@ def _validate_options(options: TraceOptions) -> None:
     _require_between("corner_angle", options.corner_angle, 0.0, 180.0)
     _require_between("alpha_threshold", options.alpha_threshold, 0.0, 255.0)
     _require_at_least("mask_blur", options.mask_blur, 0.0)
+    if options.seed is not None:
+        _require_at_least("seed", options.seed, 0)
 
 
 def _require_at_least(name: str, value: float, minimum: float) -> None:
@@ -189,6 +193,7 @@ def _cluster_foreground(
     palette: list[str] | None,
     alpha_foreground: bool = False,
     mask_blur: float = 0.0,
+    seed: int | None = 0,
 ) -> tuple[list[np.ndarray], list[str]]:
     pixels = rgb[foreground > 0].reshape(-1, 3).astype(np.float32)
     if len(pixels) == 0:
@@ -196,6 +201,8 @@ def _cluster_foreground(
 
     groups = max(1, min(groups, len(pixels)))
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 120, 0.1)
+    if seed is not None:
+        cv2.setRNGSeed(seed)
     _compactness, labels, centers = cv2.kmeans(
         pixels, groups, None, criteria, 16, cv2.KMEANS_PP_CENTERS
     )
