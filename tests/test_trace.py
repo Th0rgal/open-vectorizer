@@ -7,6 +7,7 @@ from open_vectorizer import TraceOptions, trace_image
 from open_vectorizer.trace import (
     _closed_catmull_rom_path,
     _contour_smooth_window,
+    _resample_closed_points,
     _rounded_closed_path,
     _rounded_closed_points,
     _smooth_closed_contour,
@@ -125,6 +126,23 @@ def test_rounded_points_feed_cubic_spline_without_line_segments() -> None:
     assert "C " in path
     assert "L " not in path
     assert "Q " not in path
+
+
+def test_resample_closed_points_adds_even_curve_anchors() -> None:
+    points = np.array(
+        [
+            [0.0, 0.0],
+            [80.0, 0.0],
+            [80.0, 20.0],
+            [0.0, 20.0],
+        ]
+    )
+
+    resampled = _resample_closed_points(points, spacing=10.0)
+    lengths = np.linalg.norm(np.roll(resampled, -1, axis=0) - resampled, axis=1)
+
+    assert len(resampled) == 20
+    assert np.max(lengths) <= 10.5
 
 
 def test_trace_preserves_background_holes(tmp_path: Path) -> None:

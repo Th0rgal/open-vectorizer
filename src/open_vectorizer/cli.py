@@ -31,6 +31,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Odd-sized smoothing window applied to traced contours before simplification",
     )
     parser.add_argument(
+        "--curve-spacing",
+        type=float,
+        default=0.0,
+        help="Resample smoothed contours at this pixel spacing before cubic fitting; 0 disables",
+    )
+    parser.add_argument(
         "--corner-angle",
         type=float,
         default=0.0,
@@ -75,6 +81,7 @@ def main() -> None:
             alpha_threshold=args.alpha_threshold,
             simplify=args.simplify,
             contour_smooth=args.contour_smooth,
+            curve_spacing=args.curve_spacing,
             corner_angle=args.corner_angle,
             corner_radius=args.corner_radius,
             corner_rounding=args.corner_rounding,

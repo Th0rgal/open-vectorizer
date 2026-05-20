@@ -18,6 +18,7 @@ class TraceOptions:
     background_threshold: float = 8.0
     simplify: float = 3.2
     contour_smooth: int = 15
+    curve_spacing: float = 0.0
     corner_angle: float = 0.0
     corner_radius: float = 0.0
     corner_rounding: int = 1
@@ -58,6 +59,7 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
             opts.simplify,
             opts.min_area,
             opts.contour_smooth,
+            opts.curve_spacing,
             opts.corner_angle,
             opts.corner_radius,
             opts.corner_rounding,
@@ -194,6 +196,7 @@ def _mask_to_paths(
     simplify: float,
     min_area: float,
     contour_smooth: int,
+    curve_spacing: float,
     corner_angle: float,
     corner_radius: float,
     corner_rounding: int,
@@ -219,6 +222,7 @@ def _mask_to_paths(
                 contour,
                 simplify,
                 contour_smooth,
+                curve_spacing,
                 corner_angle,
                 corner_radius,
                 corner_rounding,
@@ -233,6 +237,7 @@ def _mask_to_paths(
                         child,
                         simplify,
                         contour_smooth,
+                        curve_spacing,
                         corner_angle,
                         corner_radius,
                         corner_rounding,
@@ -250,6 +255,7 @@ def _contour_to_path(
     contour: np.ndarray,
     simplify: float,
     contour_smooth: int,
+    curve_spacing: float,
     corner_angle: float,
     corner_radius: float,
     corner_rounding: int,
@@ -257,13 +263,44 @@ def _contour_to_path(
     contour = _smooth_closed_contour(
         contour, _contour_smooth_window(contour, contour_smooth), corner_angle
     )
-    approx = cv2.approxPolyDP(contour, simplify, closed=True).reshape(-1, 2).astype(float)
+    if curve_spacing > 0:
+        approx = _resample_closed_points(contour.reshape(-1, 2).astype(float), curve_spacing)
+    else:
+        approx = cv2.approxPolyDP(contour, simplify, closed=True).reshape(-1, 2).astype(float)
     if len(approx) < 4:
         return ""
     if corner_radius > 0:
         approx = _rounded_closed_points(approx, corner_radius)
     approx = _chaikin_closed(approx, corner_rounding)
     return _closed_catmull_rom_path(approx, corner_angle)
+
+
+def _resample_closed_points(points: np.ndarray, spacing: float) -> np.ndarray:
+    p = points.astype(float)
+    if spacing <= 0 or len(p) < 4:
+        return p
+
+    following = np.roll(p, -1, axis=0)
+    lengths = np.linalg.norm(following - p, axis=1)
+    perimeter = float(lengths.sum())
+    if perimeter == 0.0:
+        return p
+
+    sample_count = max(4, int(round(perimeter / spacing)))
+    targets = np.linspace(0.0, perimeter, sample_count, endpoint=False)
+    cumulative = np.concatenate([[0.0], np.cumsum(lengths)])
+    result: list[np.ndarray] = []
+    segment_index = 0
+    for target in targets:
+        while segment_index < len(lengths) - 1 and cumulative[segment_index + 1] <= target:
+            segment_index += 1
+        length = lengths[segment_index]
+        if length == 0.0:
+            result.append(p[segment_index])
+            continue
+        ratio = (target - cumulative[segment_index]) / length
+        result.append(p[segment_index] * (1.0 - ratio) + following[segment_index] * ratio)
+    return np.array(result, dtype=float)
 
 
 def _contour_smooth_window(contour: np.ndarray, requested: int) -> int:

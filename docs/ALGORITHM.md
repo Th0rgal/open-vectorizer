@@ -18,8 +18,9 @@ logos.
 7. Smooth each closed contour with a wrapped Hann window to reduce JPEG stair-steps before fitting
    curves, capping the window on thin contours so narrow strokes keep their coverage.
 8. Remove small contours with `--min-area`.
-9. Simplify contours with Ramer-Douglas-Peucker.
-10. Offset simplified polygon corners into rounded point pairs so sharp raster vertices get real
+9. Simplify contours with Ramer-Douglas-Peucker, or resample smoothed contours at even arc-length
+   spacing when the artwork has long shallow curves.
+10. Offset simplified/resampled contour corners into rounded point pairs so sharp raster vertices get real
     radius without creating straight line SVG segments.
 11. Apply optional Chaikin smoothing to the rounded points.
 12. Convert the rounded contours to closed cubic Bezier paths using Catmull-Rom control points.
@@ -38,6 +39,7 @@ open-vectorizer examples/keel-compressed.jpg examples/keel.svg \
   --resize 1200 \
   --simplify 1.98 \
   --contour-smooth 15 \
+  --curve-spacing 14 \
   --corner-angle 60 \
   --corner-radius 3.25 \
   --corner-rounding 1 \
@@ -55,8 +57,9 @@ thin, and shallowly curved. Tracing the raw binary boundary can leave visible se
 changes after cubic fitting. The contour smoothing pass dampens those one-pixel wiggles before
 simplification, while the adaptive smoothing cap avoids eroding thin black strokes. A naive
 corner-radius pass made the corners round but left straight `L` segments between them. The current
-approach instead offsets each corner into rounded points and then fits cubic Bezier curves around
-the whole contour, so the broad teal edges use SVG curvature instead of straight chords.
+approach instead resamples the smoothed contour before corner rounding and cubic fitting. That gives
+long shallow edges enough control points to read as continuous SVG curvature instead of straight
+chords.
 
 ## Future Work
 
