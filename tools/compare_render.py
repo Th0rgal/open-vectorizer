@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -15,6 +16,10 @@ def _load_rgba(path: Path) -> np.ndarray:
 
 
 def _render_svg(svg_path: Path, png_path: Path, width: int, height: int) -> None:
+    if shutil.which("rsvg-convert") is None:
+        raise RuntimeError(
+            "rsvg-convert is required to render SVGs; install librsvg2-bin or an equivalent package"
+        )
     subprocess.run(
         [
             "rsvg-convert",
@@ -29,7 +34,9 @@ def _render_svg(svg_path: Path, png_path: Path, width: int, height: int) -> None
     )
 
 
-def compare(original_path: Path, svg_path: Path, render_path: Path | None = None) -> dict[str, float]:
+def compare(
+    original_path: Path, svg_path: Path, render_path: Path | None = None
+) -> dict[str, float]:
     original = _load_rgba(original_path)
     height, width = original.shape[:2]
 
@@ -42,7 +49,9 @@ def compare(original_path: Path, svg_path: Path, render_path: Path | None = None
         rendered = _load_rgba(render_path)
 
     if rendered.shape != original.shape:
-        raise ValueError(f"rendered shape {rendered.shape} does not match original {original.shape}")
+        raise ValueError(
+            f"rendered shape {rendered.shape} does not match original {original.shape}"
+        )
 
     diff = rendered - original
     rgb_diff = diff[:, :, :3]
