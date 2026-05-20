@@ -91,11 +91,54 @@ def test_trace_rejects_non_hex_palette_colors() -> None:
         )
 
 
+def test_trace_can_override_estimated_background_color(tmp_path: Path) -> None:
+    image_path = tmp_path / "border-touching.png"
+    image = np.zeros((80, 80, 3), dtype=np.uint8)
+    image[:, :] = (54, 215, 212)
+    cv2.rectangle(image, (28, 28), (52, 52), (255, 255, 255), -1)
+    cv2.imwrite(str(image_path), cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+
+    estimated = trace_image(
+        image_path,
+        TraceOptions(
+            groups=1,
+            resize_long_side=80,
+            palette=["#111111"],
+            padding=0,
+            simplify=1.0,
+            min_area=20,
+        ),
+    )
+    overridden = trace_image(
+        image_path,
+        TraceOptions(
+            groups=1,
+            resize_long_side=80,
+            palette=["#36d7d4"],
+            background_color="#fff",
+            padding=0,
+            simplify=1.0,
+            min_area=20,
+        ),
+    )
+
+    assert 'viewBox="0 0 25 25"' in estimated
+    assert 'viewBox="0 0 80 80"' in overridden
+    assert 'fill="#36d7d4"' in overridden
+
+
 def test_cli_parser_rejects_non_hex_palette_colors() -> None:
     parser = build_parser()
 
     with pytest.raises(SystemExit):
         parser.parse_args(["input.png", "output.svg", "--palette", "#36d7d4,not-a-color"])
+
+
+def test_cli_parser_rejects_non_hex_background_color() -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["input.png", "output.svg", "--background", "white"])
 
 
 def test_cli_main_writes_svg_with_normalized_palette(
@@ -117,6 +160,8 @@ def test_cli_main_writes_svg_with_normalized_palette(
             "#ABC,#111111",
             "--dark-palette",
             "#DEF,#F4EAD8",
+            "--background",
+            "#000",
             "--simplify",
             "3",
             "--min-area",

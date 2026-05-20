@@ -29,6 +29,7 @@ class TraceOptions:
     min_area: float = 18.0
     palette: list[str] | None = None
     dark_palette: list[str] | None = None
+    background_color: str | None = None
     alpha_threshold: float = 8.0
     mask_blur: float = 0.0
 
@@ -38,8 +39,9 @@ def trace_image(path: str | Path, options: TraceOptions | None = None) -> str:
     _validate_options(opts)
     palette = _normalize_palette(opts.palette, "palette")
     dark_palette = _normalize_palette(opts.dark_palette, "dark_palette")
+    background_color = _normalize_optional_color(opts.background_color, "background_color")
     rgb, alpha = _load_rgba(path, opts.resize_long_side)
-    background = _estimate_background(rgb)
+    background = _hex_to_rgb(background_color) if background_color else _estimate_background(rgb)
     has_alpha = bool(np.any(alpha < 255))
     foreground = _foreground_mask(
         rgb, background, opts.background_threshold, alpha, opts.alpha_threshold
@@ -87,6 +89,12 @@ def _normalize_palette(palette: list[str] | None, name: str) -> list[str] | None
     return [_normalize_hex_color(color, name) for color in palette]
 
 
+def _normalize_optional_color(color: str | None, name: str) -> str | None:
+    if color is None:
+        return None
+    return _normalize_hex_color(color, name)
+
+
 def _normalize_hex_color(color: str, name: str) -> str:
     cleaned = color.strip()
     if not _HEX_COLOR_RE.fullmatch(cleaned):
@@ -94,6 +102,13 @@ def _normalize_hex_color(color: str, name: str) -> str:
     if len(cleaned) == 4:
         cleaned = "#" + "".join(channel * 2 for channel in cleaned[1:])
     return cleaned.lower()
+
+
+def _hex_to_rgb(color: str) -> np.ndarray:
+    return np.array(
+        [int(color[index : index + 2], 16) for index in range(1, 7, 2)],
+        dtype=np.float32,
+    )
 
 
 def _validate_options(options: TraceOptions) -> None:

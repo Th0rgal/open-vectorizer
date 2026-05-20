@@ -9,7 +9,8 @@ logos.
 ## Current Pipeline
 
 1. Load and optionally resize the raster image.
-2. Estimate the background color from border pixels.
+2. Estimate the background color from border pixels, unless the user supplies an explicit
+   background color override.
 3. Build a foreground mask from alpha for transparent inputs, otherwise by measuring RGB distance
    from the background.
 4. Cluster foreground pixels into semantic color groups with k-means.

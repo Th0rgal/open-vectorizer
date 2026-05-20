@@ -39,6 +39,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Background distance threshold",
     )
     parser.add_argument(
+        "--background",
+        type=_parse_color,
+        default=None,
+        help="Optional background hex color override. Example: '#ffffff'",
+    )
+    parser.add_argument(
         "--alpha-threshold",
         type=_float_between("alpha-threshold", 0.0, 255.0),
         default=8.0,
@@ -125,6 +131,13 @@ def _parse_palette(value: str) -> list[str]:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
+def _parse_color(value: str) -> str:
+    try:
+        return _normalize_hex_color(value, "background")
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
 def _int_at_least(name: str, minimum: int) -> Callable[[str], int]:
     def parse(value: str) -> int:
         try:
@@ -175,6 +188,7 @@ def main() -> None:
             crop=not args.no_crop,
             padding=args.padding,
             background_threshold=args.threshold,
+            background_color=args.background,
             alpha_threshold=args.alpha_threshold,
             mask_blur=args.mask_blur,
             simplify=args.simplify,
